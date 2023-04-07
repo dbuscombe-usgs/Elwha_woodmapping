@@ -1,7 +1,4 @@
-# Elwha_woodmapping
-Codes for carrying out Elwha river wood load analysis
-
-Elwha project folder structure
+Elwha folder structure
 
 --> raw_data
 	--> dig_wood
@@ -31,7 +28,8 @@ Elwha project folder structure
 		--> LR_wood
 		--> LR_orthos_orig
 --> results
---> Elwha_woodmapping (this folder)
-	--> gdal_scripts 
+
+--> Elwha_woodmapping 
+	--> gdal_scripts (this folder)
 	
 gdal_scripts should be copied into the raw_data>>MR and raw_data>>LR nested folder structure and the results>>MR and results>>LR nested folder structure 

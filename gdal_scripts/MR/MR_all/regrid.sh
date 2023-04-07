@@ -1,0 +1,14 @@
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20120407_all_Mosaic_cm.tif MR_20120407_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20120810_all_Mosaic_cm.tif MR_20120810_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20121108_all_Mosaic_cm.tif MR_20121108_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20130213_all_Mosaic_cm.tif MR_20130213_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20130430_all_Mosaic_cm.tif MR_20130430_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20130919_all_Mosaic_cm.tif MR_20130919_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20140201_all_Mosaic_cm.tif MR_20140201_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20140930_all_Mosaic_cm.tif MR_20140930_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20150303_all_Mosaic_cm.tif MR_20150303_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20150923_all_Mosaic_cm.tif MR_20150923_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20160111_all_Mosaic_cm.tif MR_20160111_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20160714_all_Mosaic_cm.tif MR_20160714_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20160930_all_Mosaic_cm.tif MR_20160930_all_Mosaic_regrid.tif
+gdalwarp -cutline grid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 MR_20170922_all_Mosaic_cm.tif MR_20170922_all_Mosaic_regrid.tif
