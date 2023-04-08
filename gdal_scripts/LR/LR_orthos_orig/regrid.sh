@@ -1,0 +1,14 @@
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20160714_Elwha_LR.tif Elwha_LR_20160714_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20160930_Elwha_LR.tif Elwha_LR_20160930_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20170922_Elwha_LR.tif Elwha_LR_20170922_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20120407_Elwha_LR.tif Elwha_LR_20120407_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20120810_Elwha_LR.tif Elwha_LR_20120810_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20121108_Elwha_LR.tif Elwha_LR_20121108_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20130213_Elwha_LR.tif Elwha_LR_20130213_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20130430_Elwha_LR.tif Elwha_LR_20130430_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20130919_Elwha_LR.tif Elwha_LR_20130919_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20140201_Elwha_LR.tif Elwha_LR_20140201_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20140930_Elwha_LR.tif Elwha_LR_20140930_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20150303_Elwha_LR.tif Elwha_LR_20150303_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20150923_Elwha_LR.tif Elwha_LR_20150923_regrid.tif
+gdalwarp -cutline LRgrid.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr 1.569605128802169152e-06 -1.569621352017918482e-06 20160111_Elwha_LR.tif Elwha_LR_20160111_regrid.tif
