@@ -150,7 +150,7 @@ for counter,g in tqdm(enumerate(geometries)):
     del sum_da
 
     tmp = wood_c.wood.sum("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_wood/summary/region{counter}/Elwha_LR_region_{counter}_wood_sum_time.tif", dtype=dtype)
+    tmp.rio.to_raster(raster_path=f"../results/LR/LR_wood/summary/wood_animation/region{counter}/Elwha_LR_region_{counter}_wood_sum_time.tif", dtype=dtype)
     del tmp
 
     del tmp_da, im_c, wood_c
@@ -159,17 +159,17 @@ for counter,g in tqdm(enumerate(geometries)):
 #############################################################
 if run_bash:
 
-    for i in range(len(geometries)):
-        try:
-            os.mkdir(f"../results/LR/LR_wood/summary/wood_animation/region{i}")
-        except:
-            pass
-        os.system(f'mv ../results/LR/LR_wood/summary/wood_animation/Wood_01_frame_{i}*.png ../results/LR/LR_wood/wood_animation/region{i}')
+    # for i in range(len(geometries)):
+    #     try:
+    #         os.mkdir(f"../results/LR/LR_wood/summary/wood_animation/region{i}")
+    #     except:
+    #         pass
+    #     os.system(f'mv ../results/LR/LR_wood/summary/wood_animation/Wood_01_frame_{i}*.png ../results/LR/LR_wood/summary/wood_animation/region{i}')
 
-        os.system(f'convert -delay 100 ../results/LR/LR_wood/summary/wood_animation/region{i}/Wood_01_frame_{i}*.png ../results/LR/LR_wood/wood_animation/wood_animation_region{i}.gif')
+    #     os.system(f'convert -delay 100 ../results/LR/LR_wood/summary/wood_animation/region{i}/Wood_01_frame_{i}*occupancy*.png ../results/LR/LR_wood/summary/wood_animation/wood_animation_region{i}.gif')
 
     ### run bash script to stitch region sums
-    os.chdir(f"../results/LR/LR_wood")
+    os.chdir(f"../results/LR/LR_wood/summary")
     os.system("bash mosaic_timesums.sh")
     os.chdir(cwd)        
 
@@ -196,7 +196,7 @@ for counter,g in tqdm(enumerate(geometries)):
 
         tmp = wood_da -  wood_da0
 
-        tmp.rio.to_raster(raster_path=f"../results/LR/LR_wood/summary/region{counter}/Elwha_LR_region_{counter}_wood_diff_time0.tif", dtype=dtype)
+        tmp.rio.to_raster(raster_path=f"../results/LR/LR_wood/summary/wood_animation/region{counter}/Elwha_LR_region_{counter}_wood_diff_time0.tif", dtype=dtype)
         del tmp
 
         del wood_da

@@ -20,6 +20,7 @@ import xarray as xr
 from glob import glob 
 from dask.distributed import Client
 from tqdm import tqdm
+from scipy import ndimage
 
 #############################################################
 #############################################################
@@ -52,7 +53,7 @@ memory_limit='100GB'
 
 cwd = os.getcwd()
 
-run_bash = True
+run_bash = False #True
 
 #############################################################
 
@@ -95,7 +96,7 @@ if run_bash:
     # os.chdir(cwd)
 
 ## read regridded "Prob" mosaic files
-# allclass_files = sorted(glob('../raw_data/LR/LR_all/LR_*_regrid.tif'))
+# sed_files = sorted(glob('../raw_data/LR/LR_all/LR_*sed*_regrid.tif'))
 wood_files = sorted(glob('../raw_data/LR/LR_wood/LR_*_Prob1_regrid.tif'))
 veg_files = sorted(glob('../raw_data/LR/LR_veg/LR_*_Prob1_regrid.tif'))
 water_files = sorted(glob('../raw_data/LR/LR_water/LR_*_Prob0_regrid.tif'))
@@ -109,7 +110,7 @@ print(len(water_files))
 print(len(dev_files))
 print(len(im_files))
 print(len(times))
-# print(len(allclass_files))
+# print(len(sed_files))
 
 ######### get regions 
 regions = sorted(glob('../raw_data/GIS/LR*ID*.geojson'))
@@ -177,6 +178,15 @@ im_geotiffs_ds = im_geotiffs_ds.rename({2: 'green'})
 im_geotiffs_ds = im_geotiffs_ds.rename({3: 'blue'})
 
 #############################################################
+# # Load in and concatenate all individual GeoTIFFs for devleopment
+# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in sed_files],
+#                         dim=time_var)
+# # Covert our xarray.DataArray into a xarray.Dataset
+# geotiffs_ds = geotiffs_da.to_dataset('band')
+# # Rename the variable to a more useful name
+# sed_geotiffs_ds = geotiffs_ds.rename({1: 'sed'})
+
+#############################################################
 ## clean up
 water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
 veg_geotiffs_ds = veg_geotiffs_ds.drop_vars(2)
@@ -187,56 +197,76 @@ print(water_geotiffs_ds.to_array().shape)
 print(veg_geotiffs_ds.to_array().shape)
 print(dev_geotiffs_ds.to_array().shape)
 print(im_geotiffs_ds.to_array().shape)
+# print(sed_geotiffs_ds.to_array().shape)
 
-#####################################################
-#### make time-averages for filtering
-#### water, veg, dev (no clipping)
-for counter,g in tqdm(enumerate(geometries)):
 
-    try:
-        os.mkdir(f"../results/LR/LR_orthos_orig/region{counter}")
-        os.mkdir(f"../results/LR/LR_dev/region{counter}")
-        os.mkdir(f"../results/LR/LR_veg/region{counter}")
-        os.mkdir(f"../results/LR/LR_water/region{counter}")
-    except:
-        pass
+# size = 9
+# for time in times:
+#     print(time)
+#     tmp = water_geotiffs_ds.water.sel(time=time).to_numpy()
+#     tmp = ndimage.maximum_filter(tmp, size)
+#     water_geotiffs_ds.water.sel(time=time).data = tmp
 
-    veg_c = veg_geotiffs_ds.veg.rio.clip([g], veg_geotiffs_ds.veg.rio.crs)
-    water_c = water_geotiffs_ds.water.rio.clip([g], water_geotiffs_ds.water.rio.crs)
-    dev_c = dev_geotiffs_ds.dev.rio.clip([g], dev_geotiffs_ds.dev.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], im_geotiffs_ds.rio.crs)
+# #####################################################
+# #### make time-averages for filtering
+# #### water, veg, dev (no clipping)
+# for counter,g in tqdm(enumerate(geometries)):
 
-    tmp = im_c.var("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_orthos_orig/region{counter}/Elwha_LR_region_{counter}_im_time_var_prob.tif", dtype=dtype)
-    del tmp
+#     try:
+#         os.mkdir(f"../results/LR/LR_orthos_orig/region{counter}")
+#         os.mkdir(f"../results/LR/LR_dev/region{counter}")
+#         os.mkdir(f"../results/LR/LR_veg/region{counter}")
+#         os.mkdir(f"../results/LR/LR_water/region{counter}")
+#     #     os.mkdir(f"../results/LR/LR_sed/region{counter}")
+#     except:
+#         pass
 
-    tmp = im_c.mean("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_orthos_orig/region{counter}/Elwha_LR_region_{counter}_im_time_mean_prob.tif", dtype=dtype)
-    del tmp
+#     veg_c = veg_geotiffs_ds.veg.rio.clip([g], veg_geotiffs_ds.veg.rio.crs)
+#     water_c = water_geotiffs_ds.water.rio.clip([g], water_geotiffs_ds.water.rio.crs)
+#     dev_c = dev_geotiffs_ds.dev.rio.clip([g], dev_geotiffs_ds.dev.rio.crs)
+#     im_c = im_geotiffs_ds.rio.clip([g], im_geotiffs_ds.rio.crs)
+#     # sed_c = sed_geotiffs_ds.rio.clip([g], sed_geotiffs_ds.rio.crs)
 
-    tmp = veg_c.var("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_veg/region{counter}/Elwha_LR_region_{counter}_veg_time_var_prob.tif", dtype=dtype)
-    del tmp
+#     tmp = im_c.var("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_orthos_orig/region{counter}/Elwha_LR_region_{counter}_im_time_var_prob.tif", dtype=dtype)
+#     del tmp
 
-    tmp = veg_c.mean("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_veg/region{counter}/Elwha_LR_region_{counter}_veg_time_mean_prob.tif", dtype=dtype)
-    del tmp
+#     tmp = im_c.mean("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_orthos_orig/region{counter}/Elwha_LR_region_{counter}_im_time_mean_prob.tif", dtype=dtype)
+#     del tmp
 
-    tmp = water_c.var("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_water/region{counter}/Elwha_LR_region_{counter}_water_time_var_prob.tif", dtype=dtype)
-    del tmp
+#     tmp = veg_c.var("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_veg/region{counter}/Elwha_LR_region_{counter}_veg_time_var_prob.tif", dtype=dtype)
+#     del tmp
 
-    tmp = water_c.mean("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_water/region{counter}/Elwha_LR_region_{counter}_water_time_mean_prob.tif", dtype=dtype)
-    del tmp
+#     tmp = veg_c.mean("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_veg/region{counter}/Elwha_LR_region_{counter}_veg_time_mean_prob.tif", dtype=dtype)
+#     del tmp
 
-    tmp = dev_c.var("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_dev/region{counter}/Elwha_LR_region_{counter}_dev_time_var_prob.tif", dtype=dtype)
-    del tmp
+#     tmp = water_c.var("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_water/region{counter}/Elwha_LR_region_{counter}_water_time_var_prob.tif", dtype=dtype)
+#     del tmp
 
-    tmp = dev_c.mean("time", skipna=True)
-    tmp.rio.to_raster(raster_path=f"../results/LR/LR_dev/region{counter}/Elwha_LR_region_{counter}_dev_time_mean_prob.tif", dtype=dtype)
-    del tmp
+#     tmp = water_c.mean("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_water/region{counter}/Elwha_LR_region_{counter}_water_time_mean_prob.tif", dtype=dtype)
+#     del tmp
+
+#     tmp = dev_c.var("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_dev/region{counter}/Elwha_LR_region_{counter}_dev_time_var_prob.tif", dtype=dtype)
+#     del tmp
+
+#     tmp = dev_c.mean("time", skipna=True)
+#     tmp.rio.to_raster(raster_path=f"../results/LR/LR_dev/region{counter}/Elwha_LR_region_{counter}_dev_time_mean_prob.tif", dtype=dtype)
+#     del tmp
+
+#     # tmp = sed_c.mean("time", skipna=True)
+#     # tmp.rio.to_raster(raster_path=f"../results/LR/LR_sed/region{counter}/Elwha_LR_region_{counter}_sed_time_mean_bin.tif", dtype=dtype)
+#     # del tmp
+
+#     # tmp = sed_c.var("time", skipna=True)
+#     # tmp.rio.to_raster(raster_path=f"../results/LR/LR_sed/region{counter}/Elwha_LR_region_{counter}_sed_time_var_bin.tif", dtype=dtype)
+#     # del tmp
+
 
 #############################################################
 #### recombine (mosaic) and regrid
@@ -258,6 +288,10 @@ if run_bash:
     os.system("bash mosaic_timeaverage.sh")
     os.chdir(cwd)
 
+    # os.chdir(f"../results/LR/LR_sed")
+    # os.system("bash mosaic_timeaverage.sh")
+    # os.chdir(cwd)
+
 #############################################################
 #############################################################
 #############################################################
@@ -276,6 +310,13 @@ wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 wood_geotiffs_ds = wood_geotiffs_ds.drop_vars(2)
 print(wood_geotiffs_ds.to_array().shape)
 
+size = 9
+for time in times:
+    print(time)
+    tmp = wood_geotiffs_ds.wood.sel(time=time).to_numpy()
+    tmp = ndimage.maximum_filter(tmp, size)
+    wood_geotiffs_ds.wood.sel(time=time).data = tmp
+
 #############################################################
 veg_mask_ds = rioxarray.open_rasterio("../results/LR/LR_veg/Elwha_LR_veg_time_bin0.9_regrid.tif", chunks=chunksize, dtype='uint8')
 veg_mask_ds = veg_mask_ds.to_dataset('band')
@@ -283,28 +324,47 @@ veg_mask_ds = veg_mask_ds.to_dataset('band')
 dev_mask_ds = rioxarray.open_rasterio("../results/LR/LR_dev/Elwha_LR_dev_time_bin0.25_regrid.tif", chunks=chunksize, dtype='uint8')
 dev_mask_ds = dev_mask_ds.to_dataset('band')
 
-water_mask_ds = rioxarray.open_rasterio("../results/LR/LR_water/Elwha_LR_water_time_bin0.25_regrid.tif", chunks=chunksize, dtype='uint8')
+water_mask_ds = rioxarray.open_rasterio("../results/LR/LR_water/Elwha_LR_water_time_bin0.5_regrid.tif", chunks=chunksize, dtype='uint8')
+# water_mask_ds = rioxarray.open_rasterio("../results/LR/LR_water/Elwha_LR_water_time_bin0.25_regrid.tif", chunks=chunksize, dtype='uint8')
 water_mask_ds = water_mask_ds.to_dataset('band')
+
+# sed_mask_ds = rioxarray.open_rasterio("../results/LR/LR_sed/Elwha_LR_sed_time_bin0.7_regrid.tif", chunks=chunksize, dtype='uint8')
+# sed_mask_ds = sed_mask_ds.to_dataset('band')
+
+# dist_files = sorted(glob("../results/LR/LR_dist2braid/*.tif"))
+# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dist_files],
+#                         dim=time_var)
+# # Covert our xarray.DataArray into a xarray.Dataset
+# geotiffs_ds = geotiffs_da.to_dataset('band')
+# # Rename the variable to a more useful name
+# dist_geotiffs_ds = geotiffs_ds.rename({1: 'dist'})
 
 ## clean up
 water_mask_ds = water_mask_ds.drop_vars(2)
 veg_mask_ds = veg_mask_ds.drop_vars(2)
 dev_mask_ds = dev_mask_ds.drop_vars(2)
+# sed_mask_ds = sed_mask_ds.drop_vars(2)
 
 print(water_mask_ds.dims)
 print(veg_mask_ds.dims)
 print(dev_mask_ds.dims)
+# print(sed_mask_ds.dims)
 
 ### filter wood
+
+# print(wood_geotiffs_ds.sum().compute()) ##2.978e+07
+
 wood_geotiffs_ds = wood_geotiffs_ds.where((veg_mask_ds[1] < 1))
 wood_geotiffs_ds = wood_geotiffs_ds.where((water_mask_ds[1] < 1))
 wood_geotiffs_ds = wood_geotiffs_ds.where((dev_mask_ds[1] < 1))
+# wood_geotiffs_ds = wood_geotiffs_ds.where((sed_mask_ds[1] < 1))
 
-print(wood_geotiffs_ds.dims)
+wood_geotiffs_ds = wood_geotiffs_ds.where((wood_geotiffs_ds.wood > 0))
+
+# print(wood_geotiffs_ds.sum().compute()) ##2.38e+07
 
 #############################################################
-#### make time-averages for filtering
-#### water, veg, dev (no clipping)
+#### make time-averages 
 for counter,g in tqdm(enumerate(geometries)):
 
     try:
@@ -353,9 +413,24 @@ if run_bash:
     os.system("bash mosaic_t12.sh")
     os.system("bash mosaic_t13.sh")
 
+    os.system("mv *filtered_prob.tif ../wood_detect/")
+    os.system("mv *filtered_bin0.1_regrid.tif ../wood_detect/")
+
     os.chdir(cwd)
 
     os.chdir(f"../results/LR/LR_wood/wood_detect")
+
     os.system("bash clip_all.sh")
     os.system("bash clip_all2.sh")
     os.chdir(cwd)
+
+#### filter based on distance to braid
+
+if run_bash:
+    os.chdir(f"../results/LR/LR_wood/wood_detect")
+    os.system("bash filter_wood_by_dist.sh")
+    os.chdir(cwd)
+
+
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*bin0.1_regrid_ccc.tif'))
+len(wood_files)

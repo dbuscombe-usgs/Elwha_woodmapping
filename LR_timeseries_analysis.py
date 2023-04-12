@@ -21,7 +21,8 @@ import xarray as xr
 from glob import glob 
 import matplotlib.pyplot as plt
 import numpy as np
-from dask.distributed import Client
+# from dask.distributed import Client
+from joblib import Parallel, delayed
 from tqdm import tqdm
 from datetime import datetime
 
@@ -50,14 +51,14 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 10
-threads_per_worker = 2
-memory_limit='50GB'
+# n_workers = 10
+# threads_per_worker = 2
+# memory_limit='50GB'
 
 cwd = os.getcwd()
 
 ## start client
-client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
@@ -80,11 +81,11 @@ print("{} sample points".format(len(points)))
 veg_files = sorted(glob('../raw_data/LR/LR_veg/LR_*_Prob1_regrid.tif'))
 water_files = sorted(glob('../raw_data/LR/LR_water/LR_*_Prob0_regrid.tif'))
 # dev_files = sorted(glob('../raw_data/LR/LR_dev/LR_*_Prob1_regrid.tif'))
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*LR_*DEM_regrid.tif'))
+print(len(dem_files))
 
 # get filtered wood probs, clipped to margins
 wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*bin0.25_regrid_cc.tif'))
-
-# wood_files = sorted(glob('../raw_data/LR/LR_wood/LR_*_Prob1_regrid.tif'))
 
 print(len(wood_files))
 
@@ -95,11 +96,6 @@ geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtyp
 geotiffs_ds = geotiffs_da.to_dataset('band')
 # Rename the variable to a more useful name
 wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
-
-# # get timeaverage image for consistent lighting
-# avim_ds = rioxarray.open_rasterio("LR/LR_orthos_orig/Elwha_LR_im_time_mean_prob.tif", chunks=chunksize, dtype='uint8')
-# avim_ds = avim_ds.to_dataset('band')
-# print(avim_ds.dims)
 
 #############################################################
 # Load in and concatenate all individual GeoTIFFs
@@ -119,18 +115,46 @@ geotiffs_ds = geotiffs_da.to_dataset('band')
 # Rename the variable to a more useful name
 veg_geotiffs_ds = geotiffs_ds.rename({1: 'veg'})
 
+#############################################################
+
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+dem_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
+
 #########################################################
 ## clean up
 water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
 veg_geotiffs_ds = veg_geotiffs_ds.drop_vars(2)
 wood_geotiffs_ds = wood_geotiffs_ds.drop_vars(2)
+dem_geotiffs_ds = dem_geotiffs_ds.drop_vars(2)
 
 print(water_geotiffs_ds.to_array().shape)
 print(veg_geotiffs_ds.to_array().shape)
 print(wood_geotiffs_ds.to_array().shape)
+print(dem_geotiffs_ds.to_array().shape)
 
 #############################################################
 #########################################################
+
+# x=np.array(points)[:,0][:-1]
+# y=np.array(points)[:,1][:-1]
+
+# xx = np.split(x, 13)
+# yy = np.split(y, 13)
+
+# def get_pp_stats(xxx,yyy,wood_geotiffs_ds,water_geotiffs_ds,veg_geotiffs_ds,dem_geotiffs_ds):
+#     pwood = []; pwater = []; pveg = []; pdem = []; 
+#     for (xx,yy) in tqdm(enumerate(zip(xxx,yyy))):
+#         pwood.append(wood_geotiffs_ds.wood.sel(x=xx,y=yy, method="nearest").to_numpy())
+#         pwater.append(water_geotiffs_ds.water.sel(x=xx,y=yy, method="nearest").to_numpy())
+#         pveg.append(veg_geotiffs_ds.veg.sel(x=xx,y=yy, method="nearest".to_numpy()))
+#         pdem.append(dem_geotiffs_ds.dem.sel(x=xx,y=yy, method="nearest").to_numpy())
+#     return pwood,pwater,pveg,pdem
+
+# pwood,pwater,pveg,pdem = get_pp_stats(xx[0][:100],yy[0][:100],wood_geotiffs_ds,water_geotiffs_ds,veg_geotiffs_ds,dem_geotiffs_ds)
 
 x=np.array(points)[:,0]
 y=np.array(points)[:,1]
@@ -138,16 +162,20 @@ y=np.array(points)[:,1]
 dat_wood = np.zeros((len(x),len(times)))
 dat_water = np.zeros((len(x),len(times)))
 dat_veg = np.zeros((len(x),len(times)))
+dat_dem = np.zeros((len(x),len(times)))
 
 for counter, (xx,yy) in tqdm(enumerate(zip(x,y))):
     pwood = wood_geotiffs_ds.wood.sel(x=xx,y=yy, method="nearest")
     pwater = water_geotiffs_ds.water.sel(x=xx,y=yy, method="nearest")
     pveg = veg_geotiffs_ds.veg.sel(x=xx,y=yy, method="nearest")
-    dat_wood[counter,:] = pwood
-    dat_water[counter,:] = pwater
-    dat_veg[counter,:] = pveg
+    pdem = dem_geotiffs_ds.dem.sel(x=xx,y=yy, method="nearest")
 
-np.savez('../results/LR/LR_wood/summary/bin_wood_water_veg_allpts_5m.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
+    dat_wood[counter,:] = pwood.to_numpy()
+    dat_water[counter,:] = pwater.to_numpy()
+    dat_veg[counter,:] = pveg.to_numpy()
+    dat_dem[counter,:] = pdem.to_numpy()
+
+np.savez('../results/LR/LR_wood/summary/bin_wood_water_veg_dem_allpts_5m.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
 
 # np.savez('../results/LR/bin_wood_water_veg_allpts.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
 # np.savez('../results/LR/probs_wood_water_veg_allpts.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
@@ -167,14 +195,14 @@ with np.load('../results/LR/LR_wood/summary/bin_wood_water_veg_allpts_5m.npz') a
 
 dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
 
-# plt.figure(figsize=(6,12))
-# plt.subplot(311)
-# plt.plot(dt,np.sum(dat_wood>0,0),'r')
-# plt.subplot(312)
-# plt.plot(dt,np.sum(dat_water>0,0),'b')
-# plt.subplot(313)
-# plt.plot(dt,np.sum(dat_veg>0,0),'g')
-# plt.show()
+plt.figure(figsize=(6,12))
+plt.subplot(311)
+plt.plot(dt,np.sum(dat_wood>0,0),'r')
+plt.subplot(312)
+plt.plot(dt,np.sum(dat_water>0,0),'b')
+plt.subplot(313)
+plt.plot(dt,np.sum(dat_veg>0,0),'g')
+plt.show()
 
 #########################################################
 #########################################################
@@ -259,6 +287,13 @@ plt.scatter(x,y,10,s_veg)
 plt.subplot(133)
 plt.scatter(x,y,10,s_water)
 plt.show()
+
+
+
+
+
+
+
 
 # da = xr.tutorial.open_dataset('air_temperature')["air"].load()
 # da_2013 = da.sel(time="2013")
