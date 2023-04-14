@@ -100,9 +100,9 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 20
-threads_per_worker = 2
-memory_limit='50GB'
+n_workers = 22
+threads_per_worker = 4
+memory_limit='100GB'
 
 cwd = os.getcwd()
 
@@ -146,9 +146,13 @@ water_files = sorted(glob('../raw_data/MR/MR_water/MR_*_Prob0_regrid.tif'))
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*MR_*DEM_regrid.tif'))
 print(len(dem_files))
 
+dist_files = sorted(glob('../results/MR/MR_dist2braid/*MR_*.tif'))
+print(len(dist_files))
+
 # get filtered wood probs, clipped to margins
-# wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*bin0.25_regrid_cc.tif'))
-wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*bin0.1_regrid_cc.tif'))
+
+## distance-filtered wood
+wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*bin0.1_regrid_ccc.tif'))
 print(len(wood_files))
 
 # Load in and concatenate all individual GeoTIFFs
@@ -191,6 +195,16 @@ geotiffs_ds = geotiffs_da.to_dataset('band')
 # Rename the variable to a more useful name
 dem_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
 
+#############################################################
+
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dist_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+dist_geotiffs_ds = geotiffs_ds.rename({1: 'dist'})
+
+
 #########################################################
 ## clean up
 water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
@@ -202,15 +216,14 @@ print(water_geotiffs_ds.to_array().shape)
 print(veg_geotiffs_ds.to_array().shape)
 print(wood_geotiffs_ds.to_array().shape)
 print(dem_geotiffs_ds.to_array().shape)
+print(dist_geotiffs_ds.to_array().shape)
 
 wood_geotiffs_ds = wood_geotiffs_ds.astype(wood_dtype) #dtype
 
 # elev_bins = [0,2,4,8,10,12,]
 
-
-
-
-
+### killed
+# wood_geotiffs_ds.wood.sum(axis=0).rio.to_raster(raster_path=f"../results/MR/MR_wood/MR_wood_time_sum.tif", dtype=wood_dtype)
 
 #############################################################
 #########################################################
@@ -218,23 +231,41 @@ wood_geotiffs_ds = wood_geotiffs_ds.astype(wood_dtype) #dtype
 x=np.array(points)[:,0]
 y=np.array(points)[:,1]
 
+print(len(x))
+
+x = x[22860:]
+y = y[22860:]
+
+# dat_wood = wood_geotiffs_ds.wood.sel(x=x,y=y, method="nearest").compute()
+# dat_water = water_geotiffs_ds.water.sel(x=x,y=y, method="nearest").compute()
+# dat_veg = veg_geotiffs_ds.veg.sel(x=x,y=y, method="nearest").compute()
+# dat_dem = dem_geotiffs_ds.dem.sel(x=x,y=y, method="nearest").compute()
+# dat_dist = dist_geotiffs_ds.dist.sel(x=x,y=y, method="nearest").compute()
+
+
 dat_wood = np.zeros((len(x),len(times)))
 dat_water = np.zeros((len(x),len(times)))
 dat_veg = np.zeros((len(x),len(times)))
 dat_dem = np.zeros((len(x),len(times)))
+dat_dist = np.zeros((len(x),len(times)))
 
 for counter, (xx,yy) in tqdm(enumerate(zip(x,y))):
     pwood = wood_geotiffs_ds.wood.sel(x=xx,y=yy, method="nearest")
     pwater = water_geotiffs_ds.water.sel(x=xx,y=yy, method="nearest")
     pveg = veg_geotiffs_ds.veg.sel(x=xx,y=yy, method="nearest")
     pdem = dem_geotiffs_ds.dem.sel(x=xx,y=yy, method="nearest")
+    pdist = dist_geotiffs_ds.dist.sel(x=xx,y=yy, method="nearest")
 
     dat_wood[counter,:] = pwood.to_numpy()
     dat_water[counter,:] = pwater.to_numpy()
     dat_veg[counter,:] = pveg.to_numpy()
     dat_dem[counter,:] = pdem.to_numpy()
+    dat_dist[counter,:] = pdist.to_numpy()
 
-np.savez('../results/MR/MR_wood/summary/bin_wood_water_veg_dem_allpts_5m.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, dat_dem=dat_dem, x=x, y=y)
+np.savez('../results/MR/MR_wood/summary/MR_wood_water_veg_dem_dist_allpts_5m_partialONLY_2of2.npz', 
+         dat_veg=dat_veg, dat_water=dat_water, 
+         dat_wood=dat_wood, dat_dem=dat_dem, dat_dist = dat_dist,
+         x=x, y=y)
 
 # np.savez('../results/MR/bin_wood_water_veg_allpts.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
 # np.savez('../results/MR/probs_wood_water_veg_allpts.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
@@ -246,24 +277,76 @@ np.savez('../results/MR/MR_wood/summary/bin_wood_water_veg_dem_allpts_5m.npz', d
 
 #########################################################
 
-with np.load('../results/MR/MR_wood/summary/bin_wood_water_veg_dem_allpts_5m.npz') as f:
+with np.load('../results/MR/MR_wood/summary/MR_wood_water_veg_dem_dist_allpts_5m_partialONLY.npz') as f:
+    dat_veg2 = f['dat_veg']
+    dat_water2 = f['dat_water']
+    dat_wood2 = f['dat_wood']
+    dat_dem2 = f['dat_dem']    
+    dat_x2 = f['x']
+    dat_y2 = f['y']
+    dat_dist2 = f['dat_dist']    
+
+dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
+
+
+dat_veg_merged = dat_veg2.copy() 
+dat_veg_merged[22860:,:]=dat_veg.copy()
+
+dat_water_merged = dat_water2.copy() 
+dat_water_merged[22860:,:]=dat_water.copy()
+
+dat_wood_merged = dat_wood2.copy() 
+dat_wood_merged[22860:,:]=dat_wood.copy()
+
+dat_dem_merged = dat_dem2.copy() 
+dat_dem_merged[22860:,:]=dat_dem.copy()
+
+dat_dist_merged = dat_dist2.copy() 
+dat_dist_merged[22860:,:]=dat_dist.copy()
+
+# np.savez('../results/MR/MR_wood/summary/MR_wood_water_veg_dem_dist_allpts_5m_partialONLY_2of2.npz', 
+#          dat_veg=dat_veg, dat_water=dat_water, 
+#          dat_wood=dat_wood, dat_dem=dat_dem, dat_dist = dat_dist,
+#          x=x, y=y, dt=dt)
+
+np.savez('../results/MR/MR_wood/summary/MR_wood_water_veg_dem_dist_allpts_5m_final.npz', 
+         dat_veg=dat_veg_merged, dat_water=dat_water_merged, 
+         dat_wood=dat_wood_merged, dat_dem=dat_dem_merged, dat_dist = dat_dist_merged,
+         x=x, y=y, dt=dt)
+
+# tmp = np.sum(dat_wood, axis=1)
+# ind = np.where(tmp>0)[0]
+# plt.scatter(dat_x[ind], dat_y[ind], 5, tmp[ind]); plt.axis('equal'); plt.colorbar(); plt.show()
+
+with np.load('../results/MR/MR_wood/summary/MR_wood_water_veg_dem_dist_allpts_5m_final.npz') as f:
     dat_veg = f['dat_veg']
     dat_water = f['dat_water']
     dat_wood = f['dat_wood']
     dat_dem = f['dat_dem']    
     dat_x = f['x']
     dat_y = f['y']
+    dat_dist = f['dat_dist']  
 
-dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
 
-# plt.figure(figsize=(6,12))
-# plt.subplot(311)
-# plt.plot(dt,np.sum(dat_wood>0,0),'r')
-# plt.subplot(312)
-# plt.plot(dt,np.sum(dat_water>0,0),'b')
-# plt.subplot(313)
-# plt.plot(dt,np.sum(dat_veg>0,0),'g')
-# plt.show()
+import pandas as pd
+for counter,time in enumerate(times):
+    d = {"dat_veg":dat_veg[:,counter], "dat_water":dat_water[:,counter], 
+            "dat_wood":dat_wood[:,counter], "dat_dem":dat_dem[:,counter], "dat_dist":dat_dist[:,counter],
+            "x":x, "y":y}
+    df = pd.DataFrame(d)
+    df.to_csv(f"../results/MR/MR_wood/summary/MR_{time}_wood_water_veg_dem_dist_allpts_5m.csv")
+
+
+
+
+plt.figure(figsize=(6,12))
+plt.subplot(311)
+plt.plot(dt,np.sum(dat_wood>0,0),'r')
+plt.subplot(312)
+plt.plot(dt,np.sum(dat_water>0,0),'b')
+plt.subplot(313)
+plt.plot(dt,np.sum(dat_veg>0,0),'g')
+plt.show()
 
 #########################################################
 #########################################################

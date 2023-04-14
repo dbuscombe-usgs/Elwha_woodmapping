@@ -21,7 +21,7 @@ import xarray as xr
 from glob import glob 
 import matplotlib.pyplot as plt
 import numpy as np
-# from dask.distributed import Client
+from dask.distributed import Client
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from datetime import datetime
@@ -51,14 +51,14 @@ times = [
     '2017-09-22'
 ]
 
-# n_workers = 10
-# threads_per_worker = 2
-# memory_limit='50GB'
+n_workers = 10
+threads_per_worker = 2
+memory_limit='10GB'
 
 cwd = os.getcwd()
 
-## start client
-# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+# start client
+client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
@@ -67,7 +67,9 @@ time_var = xr.Variable('time',times)
 #########################################################
 
 # fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_10m_wgs84.geojson'))
-fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_5m.geojson'))
+# fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_5m.geojson'))
+fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_10m_v2_wgs84.geojson'))
+
 with open(fpoints[0]) as f:
     gj = json.load(f)
 features = gj['features']
@@ -85,9 +87,14 @@ dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*LR_*DEM
 print(len(dem_files))
 
 # get filtered wood probs, clipped to margins
-wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*bin0.25_regrid_cc.tif'))
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*bin0.1_regrid_ccc.tif'))
 
 print(len(wood_files))
+
+
+dist_files = sorted(glob('../results/LR/LR_dist2braid/*LR_*.tif'))
+print(len(dist_files))
+
 
 # Load in and concatenate all individual GeoTIFFs
 geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
@@ -124,6 +131,16 @@ geotiffs_ds = geotiffs_da.to_dataset('band')
 # Rename the variable to a more useful name
 dem_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
 
+
+#############################################################
+
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dist_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+dist_geotiffs_ds = geotiffs_ds.rename({1: 'dist'})
+
 #########################################################
 ## clean up
 water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
@@ -135,12 +152,16 @@ print(water_geotiffs_ds.to_array().shape)
 print(veg_geotiffs_ds.to_array().shape)
 print(wood_geotiffs_ds.to_array().shape)
 print(dem_geotiffs_ds.to_array().shape)
+print(dist_geotiffs_ds.to_array().shape)
 
 #############################################################
 #########################################################
 
-# x=np.array(points)[:,0][:-1]
-# y=np.array(points)[:,1][:-1]
+x=np.array(points)[:,0]
+y=np.array(points)[:,1]
+
+print(len(x))
+
 
 # xx = np.split(x, 13)
 # yy = np.split(y, 13)
@@ -156,26 +177,29 @@ print(dem_geotiffs_ds.to_array().shape)
 
 # pwood,pwater,pveg,pdem = get_pp_stats(xx[0][:100],yy[0][:100],wood_geotiffs_ds,water_geotiffs_ds,veg_geotiffs_ds,dem_geotiffs_ds)
 
-x=np.array(points)[:,0]
-y=np.array(points)[:,1]
-
 dat_wood = np.zeros((len(x),len(times)))
 dat_water = np.zeros((len(x),len(times)))
 dat_veg = np.zeros((len(x),len(times)))
 dat_dem = np.zeros((len(x),len(times)))
+dat_dist = np.zeros((len(x),len(times)))
 
 for counter, (xx,yy) in tqdm(enumerate(zip(x,y))):
     pwood = wood_geotiffs_ds.wood.sel(x=xx,y=yy, method="nearest")
     pwater = water_geotiffs_ds.water.sel(x=xx,y=yy, method="nearest")
     pveg = veg_geotiffs_ds.veg.sel(x=xx,y=yy, method="nearest")
     pdem = dem_geotiffs_ds.dem.sel(x=xx,y=yy, method="nearest")
+    pdist = dist_geotiffs_ds.dist.sel(x=xx,y=yy, method="nearest")
 
     dat_wood[counter,:] = pwood.to_numpy()
     dat_water[counter,:] = pwater.to_numpy()
     dat_veg[counter,:] = pveg.to_numpy()
     dat_dem[counter,:] = pdem.to_numpy()
+    dat_dist[counter,:] = pdist.to_numpy()
 
-np.savez('../results/LR/LR_wood/summary/bin_wood_water_veg_dem_allpts_5m.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
+np.savez('../results/LR/LR_wood/summary/LR_wood_water_veg_dem_dist_allpts_5m.npz', 
+         dat_veg=dat_veg, dat_water=dat_water, 
+         dat_wood=dat_wood, dat_dem=dat_dem, dat_dist = dat_dist,
+         x=x, y=y)
 
 # np.savez('../results/LR/bin_wood_water_veg_allpts.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
 # np.savez('../results/LR/probs_wood_water_veg_allpts.npz', dat_veg=dat_veg, dat_water=dat_water, dat_wood=dat_wood, x=x, y=y)
@@ -184,9 +208,18 @@ np.savez('../results/LR/LR_wood/summary/bin_wood_water_veg_dem_allpts_5m.npz', d
 # plt.scatter(x,y,10,np.mean(dat_veg,axis=1)); plt.show()
 # plt.scatter(x,y,10,np.mean(dat_water,axis=1)); plt.show()
 
+import pandas as pd
+for counter,time in enumerate(times):
+    d = {"dat_veg":dat_veg[:,counter], "dat_water":dat_water[:,counter], 
+            "dat_wood":dat_wood[:,counter], "dat_dem":dat_dem[:,counter], "dat_dist":dat_dist[:,counter],
+            "x":x, "y":y}
+    df = pd.DataFrame(d)
+    df.to_csv(f"../results/LR/LR_wood/summary/LR_{time}_wood_water_veg_dem_dist_allpts_5m.csv")
+
+
 #########################################################
 
-with np.load('../results/LR/LR_wood/summary/bin_wood_water_veg_allpts_5m.npz') as f:
+with np.load('../results/LR/LR_wood/summary/LR_wood_water_veg_dem_dist_allpts_5m.npz') as f:
     dat_veg = f['dat_veg']
     dat_water = f['dat_water']
     dat_wood = f['dat_wood']
@@ -203,6 +236,35 @@ plt.plot(dt,np.sum(dat_water>0,0),'b')
 plt.subplot(313)
 plt.plot(dt,np.sum(dat_veg>0,0),'g')
 plt.show()
+
+
+dem_bins = np.linspace(dat_dem.min(), 30, 50) #dat_dem.max()
+dist_bins = np.linspace(dat_dist.min(), 300, 50) #dat_dist.max()
+
+f, axs = plt.subplots(14, 2,figsize=(16,16))
+f.subplots_adjust(wspace=0.0, hspace=0.0)
+
+for counter,time in enumerate(times):
+    ind = np.where(dat_wood[:,counter]>0)[0]
+
+    axs[counter][0].hist(dat_dem[ind,counter], bins=dem_bins)
+    axs[counter][0].set_ylim(0,30)
+
+    axs[counter,0].set_ylabel(times[counter], rotation=60)
+
+    axs[counter][1].hist(dat_dist[ind,counter], bins=dist_bins)
+    axs[counter][1].set_ylim(0,30)
+
+axs[0,0].set_title('Wood binned by elevation')
+axs[0,1].set_title('Wood binned by distance to braid')
+
+axs[counter,0].set_xlabel('Elevation [m]')
+axs[counter,1].set_xlabel('Distance to braid centerline [m]')
+
+# plt.show()
+plt.savefig("../results/LR/LR_wood/summary/Wood_bin_distr_wrt_elev_distbraid.png", dpi=300, bbox_inches='tight')
+plt.close()
+
 
 #########################################################
 #########################################################

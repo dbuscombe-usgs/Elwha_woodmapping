@@ -76,6 +76,20 @@ for r in regions:
 
     geometries.append(features['geometry'])
 
+
+
+######### get movie regions and clipper
+movie_regions = sorted(glob('../raw_data/GIS/MR*movie*.geojson'))
+print("{} movie_ regions".format(len(movie_regions)))
+
+movie_geometries = []
+for r in movie_regions:
+    with open(r) as f:
+        gj = json.load(f)
+    features = gj['features'][0]
+
+    movie_geometries.append(features['geometry'])
+
 #############################################################
 #########################################################
 ### regrid DEM rasters
@@ -211,6 +225,155 @@ print(im_geotiffs_ds.to_array().shape)
 ### reference image (bright)
 reference = im_geotiffs_ds.sel(time='2016-07-14')
 
+#############################################################
+#############################################################
+
+
+# tmp = wood_geotiffs_ds.wood.sum("time", skipna=True)#.astype('uint8')
+# tmp.rio.to_raster(raster_path="../results/MR/MR_wood/MR_wood_time_sum.tif")
+# del tmp
+
+
+### movie_geometries
+
+## wood-sum over static image
+for counter,g in tqdm(enumerate(movie_geometries)):
+    print("Working on region {}".format(counter))
+
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+
+    im_c = avim_ds.rio.clip([g], avim_ds.rio.crs)
+    tmp_da = xr.concat([im_c[1],im_c[2],im_c[3]],dim=('x','x','x'))
+
+    fig1, ax1 = plt.subplots()
+    ax1.imshow(tmp_da.transpose()/255.)
+    
+    wood_da = wood_geotiffs_ds.wood.sum("time", skipna=True).to_numpy()
+    wood_da[wood_da==0] = np.nan
+    ax1.imshow(wood_da,'Reds_r')
+    # plt.show()
+
+    plt.axis('off')
+    plt.savefig(f"../results/MR/Wood_inst_movie_{counter}_woodsum.png", dpi=300, bbox_inches='tight')
+    plt.close()
+    del wood_da, tmp_da
+
+
+
+
+
+
+
+
+
+### movie_geometries
+
+## wood only
+for counter,g in tqdm(enumerate(movie_geometries)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        fig1, ax1 = plt.subplots()
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+
+        ax1.imshow(matched)
+
+        wood_da = wood_c.wood.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        wood_da = ndimage.maximum_filter(wood_da, size=10)
+        wood_da[wood_da==0] = np.nan
+        ax1.imshow(wood_da,'Reds_r')
+        plt.title(time)
+        # plt.show()
+
+        plt.axis('off')
+        plt.savefig(f"../results/MR/Wood_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del wood_da
+
+
+
+##### all
+for counter,g in tqdm(enumerate(movie_geometries)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+    veg_c = veg_geotiffs_ds.rio.clip([g], veg_geotiffs_ds.rio.crs)
+    water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
+    dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
+    sed_c = sed_geotiffs_ds.rio.clip([g], sed_geotiffs_ds.rio.crs)
+
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        fig1, ax1 = plt.subplots()
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+
+        ax1.imshow(matched)
+
+        water_da = water_c.water.sel(time=time)
+        water_da = water_da.transpose().to_numpy()
+        water_da = ndimage.maximum_filter(water_da, size=10)
+        water_da[water_da<.2] = np.nan
+        ax1.imshow(water_da,'Blues', alpha=0.5)
+
+        veg_da = veg_c.veg.sel(time=time)
+        veg_da = veg_da.transpose().to_numpy()
+        veg_da = ndimage.maximum_filter(veg_da, size=10)
+        veg_da[veg_da<.5] = np.nan        
+        ax1.imshow(veg_da,'Purples', alpha=0.5)
+
+        sed_da = sed_c.sed.sel(time=time)
+        sed_da = sed_da.transpose().to_numpy().astype('float64')
+        sed_da[sed_da<.5] = np.nan        
+        ax1.imshow(sed_da,'autumn_r', alpha=0.5)
+
+
+        wood_da = wood_c.wood.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        wood_da = ndimage.maximum_filter(wood_da, size=10)
+        wood_da[wood_da==0] = np.nan
+        ax1.imshow(wood_da,'Reds_r')
+
+
+        dem_da = dem_c.dem.sel(time=time)
+
+        CS1 = ax1.contour(dem_da.transpose(), levels=8, cmap='Greys', alpha=0.5)
+        ax1.clabel(CS1, CS1.levels[1::2], inline=True, fontsize=5)
+        plt.title(time)
+
+        # plt.show()
+
+        plt.axis('off')
+        plt.savefig(f"../results/MR/All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del wood_da, dem_da, water_da, veg_da
+
+
+
+##### all regions
+
 ## wood only
 for counter,g in tqdm(enumerate(geometries)):
     print("Working on region {}".format(counter))
@@ -291,13 +454,11 @@ for counter,g in tqdm(enumerate(geometries)):
         sed_da[sed_da<.5] = np.nan        
         ax1.imshow(sed_da,'autumn_r', alpha=0.5)
 
-
         wood_da = wood_c.wood.sel(time=time)
         wood_da = wood_da.transpose().to_numpy()
         wood_da = ndimage.maximum_filter(wood_da, size=10)
         wood_da[wood_da==0] = np.nan
         ax1.imshow(wood_da,'Reds_r')
-
 
         dem_da = dem_c.dem.sel(time=time)
 
@@ -311,7 +472,6 @@ for counter,g in tqdm(enumerate(geometries)):
         plt.savefig(f"../results/MR/All_inst_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
         plt.close()
         del wood_da, dem_da, water_da, veg_da
-
 
 
 
@@ -378,8 +538,6 @@ for counter,g in tqdm(enumerate(geometries)):
         plt.savefig(f"../results/MR/All_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
         plt.close()
         del wood_da, dem_da, water_da, veg_da
-
-
 
 
 
