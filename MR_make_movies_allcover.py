@@ -47,9 +47,9 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 20
+n_workers = 22
 threads_per_worker = 2
-memory_limit='100GB'
+memory_limit='115GB'
 
 cwd = os.getcwd()
 
@@ -64,22 +64,22 @@ time_var = xr.Variable('time',times)
 #############################################################
 
 ######### get regions and clipper
-regions = sorted(glob('../raw_data/GIS/MR*ID*.geojson'))
-regions = [r for r in regions if 'pts' not in r]
-print("{} regions".format(len(regions)))
+# regions = sorted(glob('../raw_data/GIS/MR*ID*.geojson'))
+# regions = [r for r in regions if 'pts' not in r]
+# print("{} regions".format(len(regions)))
 
-geometries = []
-for r in regions:
-    with open(r) as f:
-        gj = json.load(f)
-    features = gj['features'][0]
+# geometries = []
+# for r in regions:
+#     with open(r) as f:
+#         gj = json.load(f)
+#     features = gj['features'][0]
 
-    geometries.append(features['geometry'])
+#     geometries.append(features['geometry'])
 
 
 
 ######### get movie regions and clipper
-movie_regions = sorted(glob('../raw_data/GIS/MR*movie*.geojson'))
+movie_regions = sorted(glob('../raw_data/GIS/MR*movie*epsg6339.geojson'))
 print("{} movie_ regions".format(len(movie_regions)))
 
 movie_geometries = []
@@ -107,13 +107,13 @@ if run_bash:
 #############################################################
 #########################################################
 # fpoints = sorted(glob('../raw_data/GIS/MR_allpts_clipped_active_10m_wgs84.geojson'))
-fpoints = sorted(glob('../raw_data/GIS/MR_allpts_clipped_active_5m_c_wgs84.geojson'))
-with open(fpoints[0]) as f:
-    gj = json.load(f)
-features = gj['features']
+# fpoints = sorted(glob('../raw_data/GIS/MR_allpts_clipped_active_5m_c_wgs84.geojson'))
+# with open(fpoints[0]) as f:
+#     gj = json.load(f)
+# features = gj['features']
 
-points = [f['geometry']['coordinates'][0] for f in features]
-print("{} sample points".format(len(points)))
+# points = [f['geometry']['coordinates'][0] for f in features]
+# print("{} sample points".format(len(points)))
 
 #############################################################
 #########################################################
@@ -132,7 +132,7 @@ print(len(sed_files))
 
 ### distance to braid filtered
 
-wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*bin0.1_regrid_ccc.tif'))
+wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*wood_filtered_bin0.1_regrid_final.tif'))
 
 print(len(wood_files))
 
@@ -197,7 +197,7 @@ print(sed_geotiffs_ds.to_array().shape)
 # print(dem_geotiffs_ds.min().compute())
 
 # get timeaverage image for consistent lighting
-avim_ds = rioxarray.open_rasterio("../results/MR/MR_orthos_orig/Elwha_MR_im_time_mean_prob.tif", chunks=chunksize, dtype='uint8')
+avim_ds = rioxarray.open_rasterio("../results/MR/MR_orthos_orig/Elwha_MR_im_time_mean_prob_regrid.tif", chunks=chunksize, dtype='uint8')
 avim_ds = avim_ds.to_dataset('band')
 print(avim_ds.dims)
 print(wood_geotiffs_ds.dims)
@@ -229,13 +229,7 @@ reference = im_geotiffs_ds.sel(time='2016-07-14')
 #############################################################
 
 
-# tmp = wood_geotiffs_ds.wood.sum("time", skipna=True)#.astype('uint8')
-# tmp.rio.to_raster(raster_path="../results/MR/MR_wood/MR_wood_time_sum.tif")
-# del tmp
-
-
-### movie_geometries
-
+## movie_geometries
 ## wood-sum over static image
 for counter,g in tqdm(enumerate(movie_geometries)):
     print("Working on region {}".format(counter))
@@ -244,25 +238,22 @@ for counter,g in tqdm(enumerate(movie_geometries)):
 
     im_c = avim_ds.rio.clip([g], avim_ds.rio.crs)
     tmp_da = xr.concat([im_c[1],im_c[2],im_c[3]],dim=('x','x','x'))
+    del im_c
 
     fig1, ax1 = plt.subplots()
     ax1.imshow(tmp_da.transpose()/255.)
+    del tmp_da
     
-    wood_da = wood_geotiffs_ds.wood.sum("time", skipna=True).to_numpy()
+    wood_da = wood_c.wood.sum("time", skipna=True).to_numpy()
     wood_da[wood_da==0] = np.nan
-    ax1.imshow(wood_da,'Reds_r')
+    ax1.imshow(wood_da.transpose()/len(times),'Reds_r')
+    plt.colorbar()
+    del wood_da, wood_c
     # plt.show()
 
     plt.axis('off')
     plt.savefig(f"../results/MR/Wood_inst_movie_{counter}_woodsum.png", dpi=300, bbox_inches='tight')
     plt.close()
-    del wood_da, tmp_da
-
-
-
-
-
-
 
 
 
