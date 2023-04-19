@@ -21,10 +21,10 @@ import xarray as xr
 from glob import glob 
 import matplotlib.pyplot as plt
 import numpy as np
-from dask.distributed import Client
-# from joblib import Parallel, delayed
+# from dask.distributed import Client
 from tqdm import tqdm
 from datetime import datetime
+import pandas as pd
 
 #############################################################
 #############################################################
@@ -65,25 +65,25 @@ grid2sqm = 64
 ## we estimate over-ditizization factor
 overdig_factor = 1.2
 
-#############################################################
-## start client
-client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+# #############################################################
+# ## start client
+# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
-# Create variable used for time axis
-time_var = xr.Variable('time',times)
+# # Create variable used for time axis
+# time_var = xr.Variable('time',times)
 
-######### get regions and clipper
-# regions = sorted(glob('../raw_data/GIS/LR*ID*_epsg6339.geojson'))
-# regions = [r for r in regions if 'pts' not in r]
-# print("{} regions".format(len(regions)))
+# ######### get regions and clipper
+# # regions = sorted(glob('../raw_data/GIS/LR*ID*_epsg6339.geojson'))
+# # regions = [r for r in regions if 'pts' not in r]
+# # print("{} regions".format(len(regions)))
 
-# geometries = []
-# for r in regions:
-#     with open(r) as f:
-#         gj = json.load(f)
-#     features = gj['features'][0]
+# # geometries = []
+# # for r in regions:
+# #     with open(r) as f:
+# #         gj = json.load(f)
+# #     features = gj['features'][0]
 
-#     geometries.append(features['geometry'])
+# #     geometries.append(features['geometry'])
 
 dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
 
@@ -106,108 +106,188 @@ for b in MRbudget_reaches:
     MRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
 
 
-#############################################################
-#############################################################
+# #############################################################
+# #############################################################
 
-#############################################################
-### LR
-# get filtered wood probs, clipped to margins
-wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_bin0.1_regrid_final.tif'))
-print(len(wood_files))
+# #############################################################
+# ### LR
+# # get filtered wood probs, clipped to margins
+# wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_bin0.1_regrid_final.tif'))
+# print(len(wood_files))
 
-# Load in and concatenate all individual GeoTIFFs
-geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-                        dim=time_var)
-# Covert our xarray.DataArray into a xarray.Dataset
-geotiffs_ds = geotiffs_da.to_dataset('band')
+# # Load in and concatenate all individual GeoTIFFs
+# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+#                         dim=time_var)
+# # Covert our xarray.DataArray into a xarray.Dataset
+# geotiffs_ds = geotiffs_da.to_dataset('band')
 
-# Rename the variable to a more useful name
-LRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
+# # Rename the variable to a more useful name
+# LRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
-#############################################################
-### MR
-# get filtered wood probs, clipped to margins
-wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*wood_filtered_bin0.1_regrid_final.tif'))
-print(len(wood_files))
+# #############################################################
+# ### MR
+# # get filtered wood probs, clipped to margins
+# wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*wood_filtered_bin0.1_regrid_final.tif'))
+# print(len(wood_files))
 
-# Load in and concatenate all individual GeoTIFFs
-geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-                        dim=time_var)
-# Covert our xarray.DataArray into a xarray.Dataset
-geotiffs_ds = geotiffs_da.to_dataset('band')
+# # Load in and concatenate all individual GeoTIFFs
+# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+#                         dim=time_var)
+# # Covert our xarray.DataArray into a xarray.Dataset
+# geotiffs_ds = geotiffs_da.to_dataset('band')
 
-# Rename the variable to a more useful name
-MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
-
-
-#######################################################
-### MR
-MR_BR=[]
-for time in times:
-    tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-    for g in tqdm(MRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        result = (wood_c).sum().compute().to_numpy() 
-        MR_BR.append(float(result))
+# # Rename the variable to a more useful name
+# MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
 
 #######################################################
-### MR
-LR_BR=[]
-for time in times:
-    tmp = LRwood_geotiffs_ds.wood.sel(time=time)
-    for g in tqdm(LRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        result = (wood_c).sum().compute().to_numpy() 
-        LR_BR.append(float(result))
+
+# MR_BR=[]
+# for time in times:
+#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(MRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         result = (wood_c).sum().compute().to_numpy() 
+#         MR_BR.append(float(result))
+
+# #######################################################
+
+# LR_BR=[]
+# for time in times:
+#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(LRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         result = (wood_c).sum().compute().to_numpy() 
+#         LR_BR.append(float(result))
 
 
-LR_BRarr = np.vstack(LR_BR).reshape(len(times),-1)/grid2sqm
-MR_BRarr = np.vstack(MR_BR).reshape(len(times),-1)/grid2sqm
+# LR_BRarr = np.vstack(LR_BR).reshape(len(times),-1)/grid2sqm
+# MR_BRarr = np.vstack(MR_BR).reshape(len(times),-1)/grid2sqm
 
-np.savez('Wood_time_series.npz', LR_BRarr = LR_BRarr, MR_BRarr = MR_BRarr, times=times, dt=dt, grid2sqm=grid2sqm)
+# np.savez('Wood_time_series.npz', LR_BRarr = LR_BRarr, MR_BRarr = MR_BRarr, times=times, dt=dt, grid2sqm=grid2sqm)
+
+with np.load('Wood_time_series.npz', allow_pickle=True) as f:
+    LR_BRarr = f['LR_BRarr']
+    MR_BRarr = f['MR_BRarr']
+    dt = f['dt']
+    grid2sqm = f['grid2sqm']
+
+dists = pd.read_csv('br_dists.csv')
+LR = np.hstack((0,np.array(dists['LR'])))
+MR = np.hstack((0,np.array(dists['MR'][:43])))
 
 ########################################
 plt.figure(figsize=(16,16))
 plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
 plt.subplot(321)
-plt.imshow(MR_BRarr, cmap='viridis', extent=[0, len(MRbudget_reaches_redo) , dt[0], dt[-1]], aspect='auto')
+plt.imshow(MR_BRarr, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
 plt.gca().invert_yaxis()
-plt.title('a) ', loc='left'); plt.xlabel("Accounting reach (increasing downstream)"); 
+plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(322)
-plt.imshow(LR_BRarr, cmap='viridis', extent=[0, len(MRbudget_reaches_redo) , dt[0], dt[-1]], aspect='auto')
+plt.imshow(LR_BRarr, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
 plt.gca().invert_yaxis()
-plt.title('b) ', loc='left'); plt.xlabel("Accounting reach (increasing downstream)"); 
+plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(323)
-plt.imshow(np.cumsum(MR_BRarr.T,axis=0).T, cmap='viridis', extent=[0, len(MRbudget_reaches_redo) , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.cumsum(MR_BRarr.T,axis=0).T, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
 plt.gca().invert_yaxis()
-plt.title('d) ', loc='left'); plt.xlabel("Accounting reach (increasing downstream)"); 
+plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(324)
-plt.imshow(np.cumsum(LR_BRarr.T,axis=0).T, cmap='viridis', extent=[0, len(MRbudget_reaches_redo) , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.cumsum(LR_BRarr.T,axis=0).T, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
 plt.gca().invert_yaxis()
-plt.title('d) ', loc='left'); plt.xlabel("Accounting reach (increasing downstream)"); 
+plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(325)
-plt.plot(np.mean(MR_BRarr,axis=0),'k-', label='MR')
-plt.plot(np.mean(LR_BRarr,axis=0),'r--', label='LR')
-plt.ylabel(r"Estimated wood, m$^2$"); plt.xlabel("Accounting reach (increasing downstream)"); 
+plt.plot(MR, np.sum(MR_BRarr,axis=0),'k-', label='MR')
+plt.plot(LR, np.sum(LR_BRarr,axis=0),'r--', label='LR')
+plt.ylabel(r"Sum of estimated wood, m$^2$"); plt.xlabel("Distance downstream (km)"); 
 plt.legend()
 plt.title('e) ', loc='left')
 
 plt.subplot(326)
-plt.plot(dt,np.mean(MR_BRarr,axis=1),'k-', label='MR')
-plt.plot(dt,np.mean(LR_BRarr,axis=1),'r--', label='LR')
-plt.ylabel(r"Estimated wood, m$^2$");
+plt.plot(dt,np.sum(MR_BRarr,axis=1),'k-', label='MR')
+plt.plot(dt,np.sum(LR_BRarr,axis=1),'r--', label='LR')
+plt.ylabel(r"Sum of estimated wood, m$^2$");
 plt.legend()
 plt.title('f) ', loc='left')
 # plt.show()
 
 plt.savefig("wood_spacetime_plots.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+
+sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
+
+sed_load = sed_load[['Day',
+'Daily Discharge (m3/s)',
+'Total sediment discharge (tonnes)',
+'Ave fraction fines (based on two turbidimeters)']]
+
+
+dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
+dt_sed = np.array(dt_sed)
+
+ind = np.argsort(dt_sed)
+
+
+########################################
+plt.figure(figsize=(8,8))
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+plt.subplot(311)
+plt.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'k-')
+plt.ylabel(r'Discharge (m$^3$/s)')
+plt.title('a) ', loc='left')
+
+plt.subplot(312)
+plt.plot(dt_sed[ind], sed_load['Total sediment discharge (tonnes)'][ind],'k-')
+plt.ylabel(r'Total sediment discharge (tonnes)')
+plt.title('b) ', loc='left')
+
+plt.subplot(313)
+plt.plot(dt_sed[ind], sed_load['Ave fraction fines (based on two turbidimeters)'][ind],'k-')
+plt.ylabel(r'Average fraction of fines')
+plt.title('c) ', loc='left')
+
+# plt.show()
+plt.savefig("flow_sed_2011_2016.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+########################################
+plt.figure(figsize=(8,8))
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+plt.subplot(411)
+plt.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'k-')
+plt.ylabel(r'Discharge (m$^3$/s)')
+plt.title('a) ', loc='left')
+
+plt.subplot(412)
+plt.plot(dt_sed[ind], sed_load['Total sediment discharge (tonnes)'][ind],'k-')
+plt.ylabel(r'Total sediment discharge (tonnes)')
+plt.title('b) ', loc='left')
+
+plt.subplot(413)
+plt.plot(dt_sed[ind], sed_load['Ave fraction fines (based on two turbidimeters)'][ind],'k-')
+plt.ylabel(r'Average fraction of fines')
+plt.title('c) ', loc='left')
+
+plt.subplot(414)
+plt.plot(dt,np.sum(MR_BRarr,axis=1),'k-', label='MR')
+plt.plot(dt,np.sum(LR_BRarr,axis=1),'r--', label='LR')
+plt.ylabel(r"Estimated wood, m$^2$")
+plt.title('d) ', loc='left')
+
+plt.show()
 
 
 # MR_BRarr = np.load('MR_eval_wood_budget.npz')

@@ -16,6 +16,7 @@ from tqdm import tqdm
 # import matplotlib.colors
 import numpy as np
 # from scipy import ndimage
+import pandas as pd
 
 #############################################################
 #############################################################
@@ -42,7 +43,6 @@ cwd = os.getcwd()
 grid2sqm = 64
 
 ## we estimate over-ditizization factor
-# overdig_factor = 1.5 
 overdig_factor = 1.2
 
 
@@ -134,6 +134,10 @@ MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
 #############################################################
 #############################################################
+
+dists = pd.read_csv('br_dists.csv')
+LR = np.hstack((0,np.array(dists['LR'])))
+MR = np.hstack((0,np.array(dists['MR'][:43])))
 
 #############################################################
 ### LR

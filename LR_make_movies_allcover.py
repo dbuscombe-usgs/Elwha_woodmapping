@@ -47,9 +47,9 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 20
+n_workers = 22
 threads_per_worker = 2
-memory_limit='50GB'
+memory_limit='115GB'
 
 cwd = os.getcwd()
 
@@ -63,27 +63,23 @@ time_var = xr.Variable('time',times)
 
 #############################################################
 
-######### get regions and clipper
-regions = sorted(glob('../raw_data/GIS/LR*ID*.geojson'))
-regions = [r for r in regions if 'pts' not in r]
-print("{} regions".format(len(regions)))
+# ######### get regions and clipper
+# regions = sorted(glob('../raw_data/GIS/LR*ID*.geojson'))
+# regions = [r for r in regions if 'pts' not in r]
+# print("{} regions".format(len(regions)))
 
-geometries = []
-for r in regions:
-    with open(r) as f:
-        gj = json.load(f)
-    features = gj['features'][0]
+# geometries = []
+# for r in regions:
+#     with open(r) as f:
+#         gj = json.load(f)
+#     features = gj['features'][0]
 
-    geometries.append(features['geometry'])
+#     geometries.append(features['geometry'])
 
 #############################################################
 #########################################################
 ### regrid DEM rasters
 ### recombine (mosaic) and regrid
-# all "results" rasters are 15928 x 41411
-# pixel = 1.569605128802169152e-06 degrees (approx 15cm)
-# gridded to extents of grid.geojson
-
 if run_bash:
     os.chdir("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/")
     os.system("bash regridLR.sh") 
@@ -94,18 +90,16 @@ if run_bash:
 #########################################################
 # fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_10m_wgs84.geojson'))
 # fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_5m.geojson'))
-fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_5m_v2_wgs84.geojson'))
-with open(fpoints[0]) as f:
-    gj = json.load(f)
-features = gj['features']
+# fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_5m_v2_wgs84.geojson'))
+# with open(fpoints[0]) as f:
+#     gj = json.load(f)
+# features = gj['features']
 
-points = [f['geometry']['coordinates'][0] for f in features]
-print("{} sample points".format(len(points)))
-
-
+# points = [f['geometry']['coordinates'][0] for f in features]
+# print("{} sample points".format(len(points)))
 
 ######### get movie regions and clipper
-movie_regions = sorted(glob('../raw_data/GIS/LR*movie*.geojson'))
+movie_regions = sorted(glob('../raw_data/GIS/LR*movie*epsg6339.geojson'))
 print("{} movie_ regions".format(len(movie_regions)))
 
 movie_geometries = []
@@ -125,11 +119,10 @@ water_files = sorted(glob('../raw_data/LR/LR_water/LR_*_Prob0_regrid.tif'))
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*LR_*DEM_regrid.tif'))
 print(len(dem_files))
 
-# get filtered wood probs, clipped to margins
-# wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*bin0.25_regrid_cc.tif'))
+sed_files = sorted(glob('../raw_data/LR/LR_all/LR_*sed*_regrid.tif'))
+print(len(sed_files))
 
-#### distance to braid filte5red
-wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*bin0.1_regrid_ccc.tif'))
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_bin0.1_regrid_final.tif'))
 
 print(len(wood_files))
 
@@ -168,6 +161,15 @@ geotiffs_ds = geotiffs_da.to_dataset('band')
 # Rename the variable to a more useful name
 dem_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
 
+#############################################################
+# Load in and concatenate all individual GeoTIFFs for devleopment
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in sed_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+sed_geotiffs_ds = geotiffs_ds.rename({1: 'sed'})
+
 #########################################################
 ## clean up
 water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
@@ -184,7 +186,7 @@ print(dem_geotiffs_ds.to_array().shape)
 # print(dem_geotiffs_ds.min().compute())
 
 # get timeaverage image for consistent lighting
-avim_ds = rioxarray.open_rasterio("../results/LR/LR_orthos_orig/Elwha_LR_im_time_mean_prob.tif", chunks=chunksize, dtype='uint8')
+avim_ds = rioxarray.open_rasterio("../results/LR/LR_orthos_orig/Elwha_LR_im_time_mean_prob_regrid.tif", chunks=chunksize, dtype='uint8')
 avim_ds = avim_ds.to_dataset('band')
 print(avim_ds.dims)
 print(wood_geotiffs_ds.dims)
@@ -208,9 +210,40 @@ im_geotiffs_ds = im_geotiffs_ds.rename({2: 'green'})
 im_geotiffs_ds = im_geotiffs_ds.rename({3: 'blue'})
 im_geotiffs_ds = im_geotiffs_ds.drop_vars(4)
 print(im_geotiffs_ds.to_array().shape)
+print(sed_geotiffs_ds.to_array().shape)
 
 ### reference image (bright)
 reference = im_geotiffs_ds.sel(time='2016-07-14')
+
+
+## movie_geometries
+## wood-sum over static image
+for counter,g in tqdm(enumerate(movie_geometries)):
+    print("Working on region {}".format(counter))
+
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+
+    im_c = avim_ds.rio.clip([g], avim_ds.rio.crs)
+    tmp_da = xr.concat([im_c[1],im_c[2],im_c[3]],dim=('x','x','x'))
+    del im_c
+
+    fig1, ax1 = plt.subplots()
+    ax1.imshow(tmp_da.transpose()/255.)
+    del tmp_da
+    
+    wood_da = wood_c.wood.sum("time", skipna=True).to_numpy()
+    wood_da[wood_da==0] = np.nan
+    im=ax1.imshow(wood_da.transpose()/len(times),cmap='Reds_r', vmin=0, vmax=1)
+    plt.colorbar(im, shrink=0.5)
+    del wood_da, wood_c
+    # plt.show()
+
+    plt.axis('off')
+    plt.savefig(f"../results/LR/Wood_woodsum_inst_movie_{counter}.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+
 
 ## wood only
 for counter,g in tqdm(enumerate(movie_geometries)):
@@ -248,7 +281,6 @@ for counter,g in tqdm(enumerate(movie_geometries)):
         del wood_da
 
 
-
 ##### all
 for counter,g in tqdm(enumerate(movie_geometries)):
     print("Working on region {}".format(counter))
@@ -259,7 +291,7 @@ for counter,g in tqdm(enumerate(movie_geometries)):
     veg_c = veg_geotiffs_ds.rio.clip([g], veg_geotiffs_ds.rio.crs)
     water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
     dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
-    # sed_c = sed_geotiffs_ds.rio.clip([g], sed_geotiffs_ds.rio.crs)
+    sed_c = sed_geotiffs_ds.rio.clip([g], sed_geotiffs_ds.rio.crs)
 
     tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
     reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
@@ -288,10 +320,10 @@ for counter,g in tqdm(enumerate(movie_geometries)):
         veg_da[veg_da<.5] = np.nan        
         ax1.imshow(veg_da,'Purples', alpha=0.5)
 
-        # sed_da = sed_c.sed.sel(time=time)
-        # sed_da = sed_da.transpose().to_numpy().astype('float64')
-        # sed_da[sed_da<.5] = np.nan        
-        # ax1.imshow(sed_da,'autumn_r', alpha=0.5)
+        sed_da = sed_c.sed.sel(time=time)
+        sed_da = sed_da.transpose().to_numpy().astype('float64')
+        sed_da[sed_da<.5] = np.nan        
+        ax1.imshow(sed_da,'autumn_r', alpha=0.5)
 
         wood_da = wood_c.wood.sel(time=time)
         wood_da = wood_da.transpose().to_numpy()
@@ -310,50 +342,49 @@ for counter,g in tqdm(enumerate(movie_geometries)):
         plt.axis('off')
         plt.savefig(f"../results/LR/All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
         plt.close()
-        del wood_da, dem_da, water_da, veg_da
-
+        del wood_da, dem_da, water_da, veg_da, matched
 
 
 
 ##########################################################################################
 
 
-################################################################
-## wood only
-for counter,g in tqdm(enumerate(geometries)):
-    print("Working on region {}".format(counter))
+# ################################################################
+# ## wood only
+# for counter,g in tqdm(enumerate(geometries)):
+#     print("Working on region {}".format(counter))
 
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+#     ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+#     im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+#     wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+#     tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+#     reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
 
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
+#     for inner_counter, time in enumerate(times):
+#         print("Working on time {}".format(time))
 
-        fig1, ax1 = plt.subplots()
+#         fig1, ax1 = plt.subplots()
 
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
+#         im_da = tmp_da.sel(time=time).transpose()/255.
+#         refim_da = reftmp_da.transpose()/255.
 
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+#         matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
 
-        ax1.imshow(matched)
+#         ax1.imshow(matched)
 
-        wood_da = wood_c.wood.sel(time=time)
-        wood_da = wood_da.transpose().to_numpy()
-        wood_da = ndimage.maximum_filter(wood_da, size=10)
-        wood_da[wood_da==0] = np.nan
-        ax1.imshow(wood_da,'Reds_r')
-        plt.title(time)
+#         wood_da = wood_c.wood.sel(time=time)
+#         wood_da = wood_da.transpose().to_numpy()
+#         wood_da = ndimage.maximum_filter(wood_da, size=10)
+#         wood_da[wood_da==0] = np.nan
+#         ax1.imshow(wood_da,'Reds_r')
+#         plt.title(time)
 
-        # plt.show()
+#         # plt.show()
 
-        plt.axis('off')
-        plt.savefig(f"../results/LR/Wood_inst_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-        del wood_da
+#         plt.axis('off')
+#         plt.savefig(f"../results/LR/Wood_inst_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+#         plt.close()
+#         del wood_da
 
 
 ##### alll
@@ -378,130 +409,130 @@ for counter,g in tqdm(enumerate(geometries)):
 # reference = im_geotiffs_ds.sel(time='2016-07-14')
 
 
-for counter,g in tqdm(enumerate(geometries)):
-    print("Working on region {}".format(counter))
+# for counter,g in tqdm(enumerate(geometries)):
+#     print("Working on region {}".format(counter))
 
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
-    veg_c = veg_geotiffs_ds.rio.clip([g], veg_geotiffs_ds.rio.crs)
-    water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
-    dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
+#     ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+#     im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+#     wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+#     veg_c = veg_geotiffs_ds.rio.clip([g], veg_geotiffs_ds.rio.crs)
+#     water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
+#     dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
 
-    # tmp_da = xr.concat([im_c[1],im_c[2],im_c[3]],dim=('x','x','x'))
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+#     # tmp_da = xr.concat([im_c[1],im_c[2],im_c[3]],dim=('x','x','x'))
+#     tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+#     reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
 
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
+#     for inner_counter, time in enumerate(times):
+#         print("Working on time {}".format(time))
 
-        fig1, ax1 = plt.subplots()
+#         fig1, ax1 = plt.subplots()
 
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
+#         im_da = tmp_da.sel(time=time).transpose()/255.
+#         refim_da = reftmp_da.transpose()/255.
 
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+#         matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
 
-        ax1.imshow(matched)
+#         ax1.imshow(matched)
 
-        water_da = water_c.water.sel(time=time)
-        water_da = water_da.transpose().to_numpy()
-        water_da = ndimage.maximum_filter(water_da, size=10)
-        water_da[water_da<.2] = np.nan
-        ax1.imshow(water_da,'Blues', alpha=0.5)
+#         water_da = water_c.water.sel(time=time)
+#         water_da = water_da.transpose().to_numpy()
+#         water_da = ndimage.maximum_filter(water_da, size=10)
+#         water_da[water_da<.2] = np.nan
+#         ax1.imshow(water_da,'Blues', alpha=0.5)
 
-        veg_da = veg_c.veg.sel(time=time)
-        veg_da = veg_da.transpose().to_numpy()
-        veg_da = ndimage.maximum_filter(veg_da, size=10)
-        veg_da[veg_da<.5] = np.nan        
-        ax1.imshow(veg_da,'Purples', alpha=0.5)
+#         veg_da = veg_c.veg.sel(time=time)
+#         veg_da = veg_da.transpose().to_numpy()
+#         veg_da = ndimage.maximum_filter(veg_da, size=10)
+#         veg_da[veg_da<.5] = np.nan        
+#         ax1.imshow(veg_da,'Purples', alpha=0.5)
 
-        wood_da = wood_c.wood.sel(time=time)
-        wood_da = wood_da.transpose().to_numpy()
-        wood_da = ndimage.maximum_filter(wood_da, size=10)
-        wood_da[wood_da==0] = np.nan
-        ax1.imshow(wood_da,'Reds_r')
+#         wood_da = wood_c.wood.sel(time=time)
+#         wood_da = wood_da.transpose().to_numpy()
+#         wood_da = ndimage.maximum_filter(wood_da, size=10)
+#         wood_da[wood_da==0] = np.nan
+#         ax1.imshow(wood_da,'Reds_r')
 
-        # sed_da = np.zeros((wood_c.dims['x'],wood_c.dims['y']))
-        # sed_da[np.isnan(wood_da) & np.isnan(water_da) & np.isnan(veg_da)] = 1
-        # sed_da[sed_da==0] = np.nan
-        # ax1.imshow(sed_da,'YlGn')
+#         # sed_da = np.zeros((wood_c.dims['x'],wood_c.dims['y']))
+#         # sed_da[np.isnan(wood_da) & np.isnan(water_da) & np.isnan(veg_da)] = 1
+#         # sed_da[sed_da==0] = np.nan
+#         # ax1.imshow(sed_da,'YlGn')
 
-        dem_da = dem_c.dem.sel(time=time)
+#         dem_da = dem_c.dem.sel(time=time)
 
-        CS1 = ax1.contour(dem_da.transpose(), levels=8, cmap='YlOrBr', alpha=0.5)
-        ax1.clabel(CS1, CS1.levels[1::2], inline=True, fontsize=5)
-        plt.title(time)
+#         CS1 = ax1.contour(dem_da.transpose(), levels=8, cmap='YlOrBr', alpha=0.5)
+#         ax1.clabel(CS1, CS1.levels[1::2], inline=True, fontsize=5)
+#         plt.title(time)
 
-        # plt.show()
+#         # plt.show()
 
-        plt.axis('off')
-        plt.savefig(f"../results/LR/All_inst_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-        del wood_da, dem_da, water_da, veg_da
-
-
+#         plt.axis('off')
+#         plt.savefig(f"../results/LR/All_inst_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+#         plt.close()
+#         del wood_da, dem_da, water_da, veg_da
 
 
-# #########################################
-# ################ movies with time-averaged imagery
 
-#############################################################
-# cmap=plt.cm.get_cmap('YlOrBr', len(times))
-# custom_palette = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
 
-for counter,g in tqdm(enumerate(geometries)):
-    print("Working on region {}".format(counter))
+# # #########################################
+# # ################ movies with time-averaged imagery
 
-    im_c = avim_ds.rio.clip([g], avim_ds.rio.crs)
-    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
-    veg_c = veg_geotiffs_ds.rio.clip([g], veg_geotiffs_ds.rio.crs)
-    water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
-    dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
+# #############################################################
+# # cmap=plt.cm.get_cmap('YlOrBr', len(times))
+# # custom_palette = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
 
-    tmp_da = xr.concat([im_c[1],im_c[2],im_c[3]],dim=('x','x','x'))
+# for counter,g in tqdm(enumerate(geometries)):
+#     print("Working on region {}".format(counter))
 
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
+#     im_c = avim_ds.rio.clip([g], avim_ds.rio.crs)
+#     wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+#     veg_c = veg_geotiffs_ds.rio.clip([g], veg_geotiffs_ds.rio.crs)
+#     water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
+#     dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
 
-        fig1, ax1 = plt.subplots()
-        ax1.imshow(tmp_da.transpose()/255.)
+#     tmp_da = xr.concat([im_c[1],im_c[2],im_c[3]],dim=('x','x','x'))
 
-        water_da = water_c.water.sel(time=time)
-        water_da = water_da.transpose().to_numpy()
-        water_da = ndimage.maximum_filter(water_da, size=10)
-        water_da[water_da<.2] = np.nan
-        ax1.imshow(water_da,'Blues', alpha=0.5)
+#     for inner_counter, time in enumerate(times):
+#         print("Working on time {}".format(time))
 
-        veg_da = veg_c.veg.sel(time=time)
-        veg_da = veg_da.transpose().to_numpy()
-        veg_da = ndimage.maximum_filter(veg_da, size=10)
-        veg_da[veg_da<.5] = np.nan        
-        ax1.imshow(veg_da,'Purples', alpha=0.5)
+#         fig1, ax1 = plt.subplots()
+#         ax1.imshow(tmp_da.transpose()/255.)
 
-        wood_da = wood_c.wood.sel(time=time)
-        wood_da = wood_da.transpose().to_numpy()
-        wood_da = ndimage.maximum_filter(wood_da, size=10)
-        wood_da[wood_da==0] = np.nan
-        ax1.imshow(wood_da,'Reds_r')
+#         water_da = water_c.water.sel(time=time)
+#         water_da = water_da.transpose().to_numpy()
+#         water_da = ndimage.maximum_filter(water_da, size=10)
+#         water_da[water_da<.2] = np.nan
+#         ax1.imshow(water_da,'Blues', alpha=0.5)
 
-        # sed_da = np.zeros((wood_c.dims['x'],wood_c.dims['y']))
-        # sed_da[np.isnan(wood_da) & np.isnan(water_da) & np.isnan(veg_da)] = 1
-        # sed_da[sed_da==0] = np.nan
-        # ax1.imshow(sed_da,'YlGn')
+#         veg_da = veg_c.veg.sel(time=time)
+#         veg_da = veg_da.transpose().to_numpy()
+#         veg_da = ndimage.maximum_filter(veg_da, size=10)
+#         veg_da[veg_da<.5] = np.nan        
+#         ax1.imshow(veg_da,'Purples', alpha=0.5)
 
-        dem_da = dem_c.dem.sel(time=time)
+#         wood_da = wood_c.wood.sel(time=time)
+#         wood_da = wood_da.transpose().to_numpy()
+#         wood_da = ndimage.maximum_filter(wood_da, size=10)
+#         wood_da[wood_da==0] = np.nan
+#         ax1.imshow(wood_da,'Reds_r')
 
-        CS1 = ax1.contour(dem_da.transpose(), levels=5, cmap='YlOrBr', alpha=0.5)
-        ax1.clabel(CS1, CS1.levels, inline=True, fontsize=5) #[1::2]
-        plt.title(time)
+#         # sed_da = np.zeros((wood_c.dims['x'],wood_c.dims['y']))
+#         # sed_da[np.isnan(wood_da) & np.isnan(water_da) & np.isnan(veg_da)] = 1
+#         # sed_da[sed_da==0] = np.nan
+#         # ax1.imshow(sed_da,'YlGn')
 
-        # plt.show()
+#         dem_da = dem_c.dem.sel(time=time)
 
-        plt.axis('off')
-        plt.savefig(f"../results/LR/All_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-        del wood_da, dem_da, water_da, veg_da
+#         CS1 = ax1.contour(dem_da.transpose(), levels=5, cmap='YlOrBr', alpha=0.5)
+#         ax1.clabel(CS1, CS1.levels, inline=True, fontsize=5) #[1::2]
+#         plt.title(time)
+
+#         # plt.show()
+
+#         plt.axis('off')
+#         plt.savefig(f"../results/LR/All_01_frame_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+#         plt.close()
+#         del wood_da, dem_da, water_da, veg_da
 
 
 

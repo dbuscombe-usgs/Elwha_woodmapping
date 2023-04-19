@@ -1,0 +1,14 @@
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20120407_Mosaic_Prob1_cm.tif LR_20120407_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20120810_Mosaic_Prob1_cm.tif LR_20120810_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20121108_Mosaic_Prob1_cm.tif LR_20121108_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20130213_Mosaic_Prob1_cm.tif LR_20130213_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20130430_Mosaic_Prob1_cm.tif LR_20130430_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20130919_Mosaic_Prob1_cm.tif LR_20130919_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20140201_Mosaic_Prob1_cm.tif LR_20140201_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20140930_Mosaic_Prob1_cm.tif LR_20140930_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20150303_Mosaic_Prob1_cm.tif LR_20150303_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20150923_Mosaic_Prob1_cm.tif LR_20150923_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20160111_Mosaic_Prob1_cm.tif LR_20160111_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20160714_Mosaic_Prob1_cm.tif LR_20160714_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20160930_Mosaic_Prob1_cm.tif LR_20160930_Mosaic_Prob1_regrid.tif
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 LR_20170922_Mosaic_Prob1_cm.tif LR_20170922_Mosaic_Prob1_regrid.tif
