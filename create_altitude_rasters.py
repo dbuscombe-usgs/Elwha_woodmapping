@@ -16,11 +16,12 @@ import xarray as xr
 from glob import glob 
 import matplotlib.pyplot as plt
 import numpy as np
-# from dask.distributed import Client
+from dask.distributed import Client
 from tqdm import tqdm
 from datetime import datetime
 import pandas as pd
 
+import scipy.linalg
 #############################################################
 #############################################################
 #############################################################
@@ -46,9 +47,9 @@ times = [
     '2017-09-22'
 ]
 
-# n_workers = 20
-# threads_per_worker = 2
-# memory_limit='100GB'
+n_workers = 20
+threads_per_worker = 2
+memory_limit='100GB'
 
 cwd = os.getcwd()
 
@@ -56,19 +57,38 @@ cwd = os.getcwd()
 time_var = xr.Variable('time',times)
 
 # ## start client
-# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
-
+client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 #############################################################
 #########################################################
-# fpoints = sorted(glob('../raw_data/GIS/Sep22_2017/pts_on_braid_epsg6339.geojson'))
-# with open(fpoints[0]) as f:
-#     gj = json.load(f)
-# features = gj['features']
 
-# points = [f['geometry']['coordinates'] for f in features]
-# print("{} sample points".format(len(points)))
 
+####################################################################
+############################## LR
+####################################################################
+####################################################################
+
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*LR_*DEM_regrid.tif'))
+print(len(dem_files))
+
+#############################################################
+
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+dem_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
+
+dem_geotiffs_ds = dem_geotiffs_ds.drop_vars(2)
+print(dem_geotiffs_ds.to_array().shape)
+
+#############################################################
+#########################################################
+
+####========================================================
+
+## make a new file using the Point Sampling Tool in QGIS - load the briad shapefile, and the DEM
 fpoints = sorted(glob('../raw_data/GIS/Sep22_2017/dem_pts_braids.geojson'))
 with open(fpoints[0]) as f:
     gj = json.load(f)
@@ -77,6 +97,132 @@ features = gj['features']
 points = [f['geometry']['coordinates'] for f in features]
 z = [f['properties']['Elwha_LR_20170922_DEM_regrid_1'] for f in features]
 print("{} sample points".format(len(z)))
+
+x=np.array(points)[:,0]
+y=np.array(points)[:,1]
+
+print(len(x))
+
+zMR=z
+
+
+## https://gist.github.com/amroamroamro/1db8d69b4b65e8bc66a6
+# regular grid covering the domain of the data
+X,Y = np.meshgrid(dem_geotiffs_ds.x.to_numpy(), dem_geotiffs_ds.y.to_numpy())
+
+# # best-fit linear plane
+# A = np.c_[x, y, np.ones(len(x))]
+# C,_,_,_ = scipy.linalg.lstsq(A, z)    # coefficients
+
+# # evaluate it on grid
+# Z = C[0]*X + C[1]*Y + C[2]
+# Z = Z - Z.min()
+# del A, C, X, Y, x, y, points
+
+# regular grid covering the domain of the data
+XX = X.flatten()
+YY = Y.flatten()
+del Y
+# best-fit quadratic curve
+A = np.c_[np.ones(len(x)), np.vstack((x,y)).T, np.prod(np.vstack((x,y)).T, axis=1), np.vstack((x,y)).T**2]
+C,_,_,_ = scipy.linalg.lstsq(A, z)
+
+# evaluate it on a grid
+Z = np.dot(np.c_[np.ones(XX.shape), XX, YY, XX*YY, XX**2, YY**2], C).reshape(X.shape)
+del X
+del A, C, x, y, points
+
+# time = '2017-09-22'
+offset = 10
+
+for time in times[:8]:
+        
+    tmp = dem_geotiffs_ds.dem.sel(time=time).persist()
+    tmp.data = tmp.data - tmp.data.min()
+    tmp.data = (offset + tmp.data) - Z
+    tmp.data[tmp.data<=0] = np.nan
+    tmp.data = tmp.data - offset
+    tmp = tmp.where(~np.isnan(dem_geotiffs_ds.dem.sel(time=time)))
+    tmp = tmp.where(dem_geotiffs_ds.dem.sel(time=time)>0)
+
+    tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_"+time+".tif", dtype=dtype)
+    del tmp
+
+
+for time in times[8:]:
+        
+    tmp = dem_geotiffs_ds.dem.sel(time=time).persist()
+    tmp.data = tmp.data - tmp.data.min()
+    tmp.data = (offset + tmp.data) - Z
+    tmp.data[tmp.data<=0] = np.nan
+    tmp.data = tmp.data - offset
+    tmp = tmp.where(~np.isnan(dem_geotiffs_ds.dem.sel(time=time)))
+    tmp = tmp.where(dem_geotiffs_ds.dem.sel(time=time)>0)
+
+    tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_"+time+".tif", dtype=dtype)
+    del tmp
+
+
+
+########################### make LR average detrended DEM
+###############################################################################################
+
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_*.tif'))
+print(len(dem_files))
+
+######### get regions 
+regions = sorted(glob('../raw_data/GIS/LR*ID*_epsg6339.geojson'))
+regions = [r for r in regions if 'pts' not in r]
+print("{} regions".format(len(regions)))
+
+geometries = []
+for r in regions:
+    with open(r) as f:
+        gj = json.load(f)
+    features = gj['features'][0]
+
+    geometries.append(features['geometry'])
+
+#############################################################
+
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+dem_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
+
+print(dem_geotiffs_ds.to_array().shape)
+
+dem_min = dem_geotiffs_ds.dem.min().compute().to_numpy()
+print(dem_min)
+
+for counter,g in tqdm(enumerate(geometries)):
+    dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
+
+    tmp = dem_c.dem.mean("time", skipna=True).persist()
+
+    tmp.data = tmp.data - dem_min
+
+    tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_global_region_{counter}.tif", dtype=dtype)
+    del tmp
+
+
+
+
+# gdalbuildvrt -input_file_list alltifs.txt mosaic.vrt
+# gdal_translate -co "COMPRESS=LZW" mosaic.vrt LR_DEM_detrend_global.tif
+# gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 LR_DEM_detrend_global.tif LR_DEM_detrend_global_regrid.tif
+
+
+
+
+
+####################################################################
+############################## MR
+####################################################################
+####################################################################
+
 
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*MR_*DEM_regrid.tif'))
 print(len(dem_files))
@@ -94,58 +240,152 @@ dem_geotiffs_ds = dem_geotiffs_ds.drop_vars(2)
 print(dem_geotiffs_ds.to_array().shape)
 
 
+####========================================================
+
+## make a new file using the Point Sampling Tool in QGIS - load the briad shapefile, and the DEM
+fpoints = sorted(glob('../raw_data/GIS/Sep22_2017/MR_dem_pts_braids_epsg6339.geojson'))
+with open(fpoints[0]) as f:
+    gj = json.load(f)
+features = gj['features']
+
+points = [f['geometry']['coordinates'] for f in features]
+z = [f['properties']['Elwha_MR_20170922_DEM_regrid_1'] for f in features]
+print("{} sample points".format(len(z)))
+
 x=np.array(points)[:,0]
 y=np.array(points)[:,1]
 
 print(len(x))
 
+# zLR=z
+
+# zMR = np.array(zMR)
+# zMR = zMR[zMR<25]
+# zMR = zMR[zMR>1]
+
+# plt.plot(np.linspace(0,MR[-1],len(zMR)), (sorted(zMR)[::-1]-np.max(zMR))/1000,'k',label='MR')
+# plt.plot(np.linspace(0,LR[-1],len(zLR)), (sorted(zLR)[::-1]-np.max(zLR))/1000,'r--', lw=2, label='LR')
+# yl=plt.ylim()
+
+# O = np.linspace(0,MR[-1],len(zMR))
+# E = (sorted(zMR)[::-1]-np.max(zMR))/1000
+# A = np.vstack([np.array(O), np.ones(len(O))]).T
+# m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+# plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'k:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
+
+# O = np.linspace(0,LR[-1],len(zLR))
+# E = (sorted(zLR)[::-1]-np.max(zLR))/1000
+# A = np.vstack([np.array(O), np.ones(len(O))]).T
+# m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+# plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'r:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
 
 
-# pdem = dem_geotiffs_ds.dem.sel(x=x,y=y, method="nearest").to_numpy()
-
-# np.savez('DEM_braid_elev_pts.npz', x = x, y = y, times=times, pdem = pdem)
-
-# pdem = []
-# for (xx,yy) in tqdm(zip(x,y)):
-#     tmp = dem_geotiffs_ds.dem.sel(x=xx,y=yy, method="nearest", tolerance=10).to_numpy()
-#     print(tmp)
-#     pdem.append(tmp)
-
-# with np.load('DEM_braid_elev_pts.npz', allow_pickle=True) as f:
-#     x = f['x']
-#     y = f['y']
-#     pdem = f['pdem']
+# plt.ylabel('Elevation drop (km)'); plt.xlabel('Distance downstream (km)')
+# plt.legend()
+# # plt.show()
+# plt.savefig("Elev_profiles.png", dpi=300, bbox_inches="tight")
+# plt.close()
 
 
-import scipy.linalg
 
+## https://gist.github.com/amroamroamro/1db8d69b4b65e8bc66a6
 # regular grid covering the domain of the data
 X,Y = np.meshgrid(dem_geotiffs_ds.x.to_numpy(), dem_geotiffs_ds.y.to_numpy())
 
-order = 1    # 1: linear, 2: quadratic
-if order == 1:
-    # best-fit linear plane
-    A = np.c_[x, y, np.ones(len(x))]
-    C,_,_,_ = scipy.linalg.lstsq(A, z)    # coefficients
-    
-    # evaluate it on grid
-    Z = C[0]*X + C[1]*Y + C[2]
+# # best-fit linear plane
+# A = np.c_[x, y, np.ones(len(x))]
+# C,_,_,_ = scipy.linalg.lstsq(A, z)    # coefficients
 
-elif order == 2:
-    XX = X.flatten()
-    YY = Y.flatten()
-    # best-fit quadratic curve
-    A = np.c_[np.ones(len(x)), np.vstack((x,y)), np.prod(np.vstack((x,y)) axis=1), np.vstack((x,y))**2]
-    C,_,_,_ = scipy.linalg.lstsq(A, z)
-    
-    # evaluate it on a grid
-    Z = np.dot(np.c_[np.ones(XX.shape), XX, YY, XX*YY, XX**2, YY**2], C).reshape(X.shape)    
+# # evaluate it on grid
+# Z = C[0]*X + C[1]*Y + C[2]
+# Z = Z - Z.min()
+# del A, C, X, Y, x, y, points
 
+# regular grid covering the domain of the data
+XX = X.flatten()
+YY = Y.flatten()
+del Y
+# best-fit quadratic curve
+A = np.c_[np.ones(len(x)), np.vstack((x,y)).T, np.prod(np.vstack((x,y)).T, axis=1), np.vstack((x,y)).T**2]
+C,_,_,_ = scipy.linalg.lstsq(A, z)
 
-for time in times:
+# evaluate it on a grid
+Z = np.dot(np.c_[np.ones(XX.shape), XX, YY, XX*YY, XX**2, YY**2], C).reshape(X.shape)
+del X
+del A, C, x, y, points
 
-    tmp = dem_geotiffs_ds.dem.sel(time=time)
-    tmp.data = tmp.data - Z
+offset = 10
 
-    tmp.rio.to_raster(raster_path=f"DEM_detrend.tif", dtype=dtype)
+for time in times[:8]:
+        
+    tmp = dem_geotiffs_ds.dem.sel(time=time).persist()
+    tmp.data = tmp.data - tmp.data.min()
+    tmp.data = (offset + tmp.data) - Z
+    tmp.data[tmp.data<=0] = np.nan
+    tmp.data = tmp.data - offset
+    tmp = tmp.where(~np.isnan(dem_geotiffs_ds.dem.sel(time=time)))
+    tmp = tmp.where(dem_geotiffs_ds.dem.sel(time=time)>0)
+
+    tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_"+time+".tif", dtype=dtype)
     del tmp
+
+for time in times[8:]:
+        
+    tmp = dem_geotiffs_ds.dem.sel(time=time).persist()
+    tmp.data = tmp.data - tmp.data.min()
+    tmp.data = (offset + tmp.data) - Z
+    tmp.data[tmp.data<=0] = np.nan
+    tmp.data = tmp.data - offset
+    tmp = tmp.where(~np.isnan(dem_geotiffs_ds.dem.sel(time=time)))
+    tmp = tmp.where(dem_geotiffs_ds.dem.sel(time=time)>0)
+
+    tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_"+time+".tif", dtype=dtype)
+    del tmp
+
+
+########################### make MR average detrended DEM
+###############################################################################################
+
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_*.tif'))
+print(len(dem_files))
+
+######### get regions 
+regions = sorted(glob('../raw_data/GIS/MR*ID*_epsg6339.geojson'))
+regions = [r for r in regions if 'pts' not in r]
+print("{} regions".format(len(regions)))
+
+geometries = []
+for r in regions:
+    with open(r) as f:
+        gj = json.load(f)
+    features = gj['features'][0]
+
+    geometries.append(features['geometry'])
+
+#############################################################
+
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+dem_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
+
+print(dem_geotiffs_ds.to_array().shape)
+
+dem_min = dem_geotiffs_ds.dem.min().compute().to_numpy()
+print(dem_min)
+
+for counter,g in tqdm(enumerate(geometries)):
+    dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
+
+    tmp = dem_c.dem.mean("time", skipna=True).persist()
+
+    tmp.data = tmp.data - dem_min
+
+    tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_global_region_{counter}.tif", dtype=dtype)
+    del tmp
+
+# gdalbuildvrt -input_file_list alltifs.txt mosaic.vrt
+# gdal_translate -co "COMPRESS=LZW" mosaic.vrt MR_DEM_detrend_global.tif
+# gdalwarp -cutline MRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 MR_DEM_detrend_global.tif MR_DEM_detrend_global_regrid.tif

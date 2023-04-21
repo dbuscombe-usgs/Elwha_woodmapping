@@ -1,0 +1,13 @@
+rm mosaic.vrt
+
+gdalbuildvrt -input_file_list alltifs.txt mosaic.vrt
+rm Elwha_MR_sed_time_mean_bin.tif
+gdal_translate -co "COMPRESS=LZW" mosaic.vrt Elwha_MR_sed_time_mean_bin.tif
+
+rm Elwha_MR_sed_time_bin0.7.tif
+gdal_calc.py -A Elwha_MR_sed_time_mean_bin.tif --outfile=Elwha_MR_sed_time_bin0.7.tif --calc="A>.7" --NoDataValue=0
+
+rm Elwha_MR_sed_time_bin0.7_regrid.tif
+gdalwarp -cutline grid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 Elwha_MR_sed_time_bin0.7.tif Elwha_MR_sed_time_bin0.7_regrid.tif
+
+rm Elwha_MR_sed_time_bin0.7.tif

@@ -9,12 +9,6 @@
 ## 5. 
 ## 6. 
 
-
-## Where are we in the sequence?
-## 1.filter_wood_by_av_veg_water_dev.py
-## 2. make_wood_movies.py
-## 3. >>>> timeseries_analysis.py
-
 import json, os
 import rioxarray
 import xarray as xr 
@@ -25,6 +19,7 @@ import numpy as np
 from tqdm import tqdm
 from datetime import datetime
 import pandas as pd
+from area import area
 
 #############################################################
 #############################################################
@@ -106,6 +101,28 @@ for b in MRbudget_reaches:
     MRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
 
 
+
+brfile = '../results/LR/LR_wood/wood_detect/LR_budget_reaches_epsg4326.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+LRbudget_reaches2 = gj['features']
+
+brfile = '../results/MR/MR_wood/wood_detect/MR_budget_reaches_epsg4326.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+MRbudget_reaches2 = gj['features']
+
+# get area of each budget reach and  put in a list
+A_LR = []
+for g in tqdm(LRbudget_reaches2):
+    A_LR.append(area(g['geometry']))
+
+A_MR = []
+for g in tqdm(MRbudget_reaches2):
+    A_MR.append(area(g['geometry']))
+
+
+
 # #############################################################
 # #############################################################
 
@@ -166,7 +183,7 @@ for b in MRbudget_reaches:
 
 # np.savez('Wood_time_series.npz', LR_BRarr = LR_BRarr, MR_BRarr = MR_BRarr, times=times, dt=dt, grid2sqm=grid2sqm)
 
-with np.load('Wood_time_series.npz', allow_pickle=True) as f:
+with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
     LR_BRarr = f['LR_BRarr']
     MR_BRarr = f['MR_BRarr']
     dt = f['dt']
@@ -223,6 +240,61 @@ plt.savefig("wood_spacetime_plots.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 
+#### divide out by area of each BR for a wood concentration\
+A_MR = np.array(A_MR)
+A_LR = np.array(A_LR)
+
+MR_BRarr_c = MR_BRarr/A_MR
+
+LR_BRarr_c = LR_BRarr/A_LR
+
+########################################
+plt.figure(figsize=(16,16))
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+plt.subplot(321)
+plt.imshow(MR_BRarr_c, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
+plt.gca().invert_yaxis()
+plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+plt.subplot(322)
+plt.imshow(LR_BRarr_c, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
+plt.gca().invert_yaxis()
+plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+plt.subplot(323)
+plt.imshow(np.cumsum(MR_BRarr_c.T,axis=0).T, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
+plt.gca().invert_yaxis()
+plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+plt.subplot(324)
+plt.imshow(np.cumsum(LR_BRarr_c.T,axis=0).T, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.colorbar()
+plt.gca().invert_yaxis()
+plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+plt.subplot(325)
+plt.plot(MR, np.sum(MR_BRarr,axis=0)/(A_MR*len(times)),'k-', label='MR')
+plt.plot(LR, np.sum(LR_BRarr,axis=0)/(A_LR*len(times)),'r--', label='LR')
+plt.ylabel(r"Wood concentration, m$^2$/m$^2$"); plt.xlabel("Distance downstream (km)"); 
+plt.legend()
+plt.title('e) ', loc='left')
+
+plt.subplot(326)
+plt.plot(dt,np.sum(MR_BRarr,axis=1)/np.sum(A_MR),'k-', label='MR')
+plt.plot(dt,np.sum(LR_BRarr,axis=1)/np.sum(A_MR),'r--', label='LR')
+plt.ylabel(r"Wood concentration, m$^2$/m$^2$");
+plt.legend()
+plt.title('f) ', loc='left')
+# plt.show()
+
+plt.savefig("wood_dens_spacetime_plots.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+##############################################################
 
 sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
 
@@ -263,31 +335,49 @@ plt.close()
 
 
 ########################################
-plt.figure(figsize=(8,8))
-plt.subplots_adjust(wspace=0.3, hspace=0.3)
+plt.figure(figsize=(24,4))
+plt.subplots_adjust(wspace=0.5, hspace=0.3)
 
-plt.subplot(411)
+plt.subplot(151)
 plt.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'k-')
 plt.ylabel(r'Discharge (m$^3$/s)')
 plt.title('a) ', loc='left')
 
-plt.subplot(412)
+plt.subplot(152)
 plt.plot(dt_sed[ind], sed_load['Total sediment discharge (tonnes)'][ind],'k-')
 plt.ylabel(r'Total sediment discharge (tonnes)')
 plt.title('b) ', loc='left')
 
-plt.subplot(413)
+plt.subplot(153)
 plt.plot(dt_sed[ind], sed_load['Ave fraction fines (based on two turbidimeters)'][ind],'k-')
 plt.ylabel(r'Average fraction of fines')
 plt.title('c) ', loc='left')
 
-plt.subplot(414)
-plt.plot(dt,np.sum(MR_BRarr,axis=1),'k-', label='MR')
-plt.plot(dt,np.sum(LR_BRarr,axis=1),'r--', label='LR')
+plt.subplot(154)
+plt.plot(dt,np.sum(MR_BRarr,axis=1)/np.sum(A_MR),'k-', label='MR')
+plt.plot(dt,np.sum(LR_BRarr,axis=1)/np.sum(A_MR),'r--', label='LR')
 plt.ylabel(r"Estimated wood, m$^2$")
 plt.title('d) ', loc='left')
 
-plt.show()
+t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
+t =  np.array([float(d.strftime('%s')) for d in dt])
+plt.subplot(155)
+plt.plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(MR_BRarr,axis=1), 'ko')
+
+O = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
+E = np.sum(MR_BRarr,axis=1)
+
+A = np.vstack([O, np.ones(len(O))]).T
+m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+plt.plot(O, m*O+ c, 'r:',lw=2, label='y = '+str(m)[:4]+'x+'+str(c)[:4])
+plt.text(20,35000,r'R$^2$ = '+str(np.min(np.corrcoef(O,E))**2)[:6])
+
+plt.ylabel(r"Estimated wood, m$^2$")
+plt.xlabel(r'Discharge, day of aerial survey  (m$^3$/s)')
+plt.title('e) ', loc='left')
+
+plt.savefig("flow_sed_2011_2016_wood_rel.png", dpi=300, bbox_inches="tight")
+plt.close()
 
 
 # MR_BRarr = np.load('MR_eval_wood_budget.npz')

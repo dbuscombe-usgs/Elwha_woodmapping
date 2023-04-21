@@ -4,7 +4,6 @@
 ## Does this:
 ## 1. 
 
-## Where are we in the sequence?
 
 import os, json
 import rioxarray
@@ -17,6 +16,7 @@ from tqdm import tqdm
 import numpy as np
 # from scipy import ndimage
 import pandas as pd
+from area import area 
 
 #############################################################
 #############################################################
@@ -45,10 +45,13 @@ grid2sqm = 64
 ## we estimate over-ditizization factor
 overdig_factor = 1.2
 
+do_analysis = False ###True
+
 
 #############################################################
-## start client
-client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+if do_analysis:
+    ## start client
+    client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
@@ -90,200 +93,258 @@ MRbudget_reaches_redo = []
 for b in MRbudget_reaches:
     MRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
 
-
-#############################################################
-#############################################################
-
-#############################################################
-### LR
-# get filtered wood probs, clipped to margins
-wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_prob_regrid.tif'))
-print(len(wood_files))
-
-wood_files = [w for w in wood_files for t in times if t in w]
-
-print(wood_files)
-
-# Load in and concatenate all individual GeoTIFFs
-geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-                        dim=time_var)
-# Covert our xarray.DataArray into a xarray.Dataset
-geotiffs_ds = geotiffs_da.to_dataset('band')
-
-# Rename the variable to a more useful name
-wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
-
-#############################################################
-### MR
-# get filtered wood probs, clipped to margins
-wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*wood_filtered_prob_regrid.tif'))
-print(len(wood_files))
-
-wood_files = [w for w in wood_files for t in times if t in w]
-print(wood_files)
-
-# Load in and concatenate all individual GeoTIFFs
-geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-                        dim=time_var)
-# Covert our xarray.DataArray into a xarray.Dataset
-geotiffs_ds = geotiffs_da.to_dataset('band')
-
-# Rename the variable to a more useful name
-MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
-
-
-#############################################################
-#############################################################
-
+#### distances downstream (BR)
 dists = pd.read_csv('br_dists.csv')
 LR = np.hstack((0,np.array(dists['LR'])))
 MR = np.hstack((0,np.array(dists['MR'][:43])))
 
-#############################################################
-### LR
 
-gt_20170922 = rioxarray.open_rasterio("../raw_data/dig_wood/LR_20170922_dig_wood_clipped_active_budgetextent.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-gt_20120407 = rioxarray.open_rasterio("../raw_data/dig_wood/LR_20120407_dig_wood_clipped_active_budgetextent.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+# get area of each budget reach and  put in a list
+A_LR = []
+for g in tqdm(budget_reaches):
+    A_LR.append(area(g['geometry']))
 
-### sum of all wood pixels is the target metric
-target_gt_20170922 = gt_20170922[1].sum().compute().to_numpy()
-target_gt_20120407 = gt_20120407[1].sum().compute().to_numpy()
+A_MR = []
+for g in tqdm(MRbudget_reaches):
+    A_MR.append(area(g['geometry']))
 
-threshes = np.arange(.05,.5,.01)
-S=[]
-for thres in threshes:
-    for time in times:
-        result = (wood_geotiffs_ds.wood.sel(time=time)>thres).sum().compute().to_numpy()
-        print(f"{thres}: {result}")
-        S.append(float(result))
+# #############################################################
+# #############################################################
+if do_analysis:
 
+    #############################################################
+    ### LR
+    # get filtered wood probs, clipped to margins
+    wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_prob_regrid.tif'))
+    print(len(wood_files))
 
-LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2017-09-22_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2012-04-07_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    wood_files = [w for w in wood_files for t in times if t in w]
 
-# # ### sum of all wood pixels is the target metric
-# est_gt_20170922 = LR_20170922[1].sum().compute().to_numpy()
-# est_gt_20120407 = LR_20120407[1].sum().compute().to_numpy()
+    print(wood_files)
 
-#############################################################
-### MR
+    # Load in and concatenate all individual GeoTIFFs
+    geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+                            dim=time_var)
+    # Covert our xarray.DataArray into a xarray.Dataset
+    geotiffs_ds = geotiffs_da.to_dataset('band')
 
-MRgt_20170922 = rioxarray.open_rasterio("../raw_data/dig_wood/MR_20170922_dig_wood_clipped_active_budgetextent.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-MRgt_20120407 = rioxarray.open_rasterio("../raw_data/dig_wood/MR_20120407_dig_wood_clipped_active_budgetextent_v2.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    # Rename the variable to a more useful name
+    wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
-# ### sum of all wood pixels is the target metric
-# MRtarget_gt_20170922 = MRgt_20170922[1].sum().compute().to_numpy()
-# MRtarget_gt_20120407 = MRgt_20120407[1].sum().compute().to_numpy()
+    #############################################################
+    ### MR
+    # get filtered wood probs, clipped to margins
+    wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*wood_filtered_prob_regrid.tif'))
+    print(len(wood_files))
 
-threshes = np.arange(.05,.5,.01)
-MR_S=[]
-for thres in threshes:
-    for time in times:
-        result = (MRwood_geotiffs_ds.wood.sel(time=time)>thres).sum().compute().to_numpy()
-        print(f"{thres}: {result}")
-        MR_S.append(float(result))
+    wood_files = [w for w in wood_files for t in times if t in w]
+    print(wood_files)
 
-MR_20170922 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/Elwha_MR_2017-09-22_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-MR_20120407 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/Elwha_MR_2012-04-07_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    # Load in and concatenate all individual GeoTIFFs
+    geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+                            dim=time_var)
+    # Covert our xarray.DataArray into a xarray.Dataset
+    geotiffs_ds = geotiffs_da.to_dataset('band')
 
-# # ### sum of all wood pixels is the target metric
-# MRest_gt_20170922 = MR_20170922[1].sum().compute().to_numpy()
-# MRest_gt_20120407 = MR_20120407[1].sum().compute().to_numpy()
-
-
-#############################################################
-#############################################################
+    # Rename the variable to a more useful name
+    MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
 
-BR=[]
-for g in tqdm(budget_reaches_redo):
-    wood_gt = gt_20120407.rio.clip([g], gt_20120407.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    BR.append(float(result))
+    #############################################################
+    #############################################################
 
-BR2=[]
-for g in tqdm(budget_reaches_redo):
-    wood_gt = gt_20170922.rio.clip([g], gt_20170922.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    BR2.append(float(result))
+    dists = pd.read_csv('br_dists.csv')
+    LR = np.hstack((0,np.array(dists['LR'])))
+    MR = np.hstack((0,np.array(dists['MR'][:43])))
 
+    #############################################################
+    ### LR
 
-MR_BR=[]
-for g in tqdm(MRbudget_reaches_redo):
-    wood_gt = MRgt_20120407.rio.clip([g], MRgt_20120407.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    MR_BR.append(float(result))
+    gt_20170922 = rioxarray.open_rasterio("../raw_data/dig_wood/LR_20170922_dig_wood_clipped_active_budgetextent.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    gt_20120407 = rioxarray.open_rasterio("../raw_data/dig_wood/LR_20120407_dig_wood_clipped_active_budgetextent.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
 
-MR_BR2=[]
-for g in tqdm(MRbudget_reaches_redo):
-    wood_gt = MRgt_20170922.rio.clip([g], MRgt_20170922.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    MR_BR2.append(float(result))
+    ### sum of all wood pixels is the target metric
+    target_gt_20170922 = gt_20170922[1].sum().compute().to_numpy()
+    target_gt_20120407 = gt_20120407[1].sum().compute().to_numpy()
 
-#################
+    threshes = np.arange(.05,.5,.01)
+    S=[]
+    for thres in threshes:
+        for time in times:
+            result = (wood_geotiffs_ds.wood.sel(time=time)>thres).sum().compute().to_numpy()
+            print(f"{thres}: {result}")
+            S.append(float(result))
 
 
-estBR=[]
-for g in tqdm(budget_reaches_redo):
-    wood_gt = LR_20120407.rio.clip([g], LR_20120407.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    estBR.append(float(result))
+    LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2017-09-22_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2012-04-07_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
 
-estBR2=[]
-for g in tqdm(budget_reaches_redo):
-    wood_gt = LR_20170922.rio.clip([g], LR_20170922.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    estBR2.append(float(result))
+    # # ### sum of all wood pixels is the target metric
+    # est_gt_20170922 = LR_20170922[1].sum().compute().to_numpy()
+    # est_gt_20120407 = LR_20120407[1].sum().compute().to_numpy()
 
-estMR_BR=[]
-for g in tqdm(MRbudget_reaches_redo):
-    wood_gt = MR_20120407.rio.clip([g], MR_20120407.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    estMR_BR.append(float(result))
+    #############################################################
+    ### MR
 
-estMR_BR2=[]
-for g in tqdm(MRbudget_reaches_redo):
-    wood_gt = MR_20170922.rio.clip([g], MR_20170922.rio.crs)
-    result = (wood_gt[1]).sum().compute().to_numpy() 
-    estMR_BR2.append(float(result))
+    MRgt_20170922 = rioxarray.open_rasterio("../raw_data/dig_wood/MR_20170922_dig_wood_clipped_active_budgetextent.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    MRgt_20120407 = rioxarray.open_rasterio("../raw_data/dig_wood/MR_20120407_dig_wood_clipped_active_budgetextent_v2.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
 
+    # ### sum of all wood pixels is the target metric
+    # MRtarget_gt_20170922 = MRgt_20170922[1].sum().compute().to_numpy()
+    # MRtarget_gt_20120407 = MRgt_20120407[1].sum().compute().to_numpy()
 
-MRtarget_gt_20120407 = np.cumsum(np.array(MR_BR)/grid2sqm)[-1]
-MRtarget_gt_20170922 = np.cumsum(np.array(MR_BR2)/grid2sqm)[-1]
+    threshes = np.arange(.05,.5,.01)
+    MR_S=[]
+    for thres in threshes:
+        for time in times:
+            result = (MRwood_geotiffs_ds.wood.sel(time=time)>thres).sum().compute().to_numpy()
+            print(f"{thres}: {result}")
+            MR_S.append(float(result))
 
-target_gt_20120407 = np.cumsum(np.array(BR)/grid2sqm)[-1]
-target_gt_20170922 = np.cumsum(np.array(BR2)/grid2sqm)[-1]
+    MR_20170922 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/Elwha_MR_2017-09-22_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    MR_20120407 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/Elwha_MR_2012-04-07_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
 
+    # # ### sum of all wood pixels is the target metric
+    # MRest_gt_20170922 = MR_20170922[1].sum().compute().to_numpy()
+    # MRest_gt_20120407 = MR_20120407[1].sum().compute().to_numpy()
 
-MRest_gt_20120407 = np.cumsum(np.array(estMR_BR)/grid2sqm)[-1]
-MRest_gt_20170922 = np.cumsum(np.array(estMR_BR2)/grid2sqm)[-1]
-
-est_gt_20120407 = np.cumsum(np.array(estBR)/grid2sqm)[-1]
-est_gt_20170922 = np.cumsum(np.array(estBR2)/grid2sqm)[-1]
+    #############################################################
+    #############################################################
 
 
-print(f"Obs: 2012-04-07: {MRtarget_gt_20120407/overdig_factor}")
-print(f"Est: 2012-04-07: {MRest_gt_20120407}")
+    BR=[]
+    for g in tqdm(budget_reaches_redo):
+        wood_gt = gt_20120407.rio.clip([g], gt_20120407.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        BR.append(float(result))
 
-print(f"Obs: 2017-09-22: {MRtarget_gt_20170922/overdig_factor}")
-print(f"Est: 2017-09-22: {MRest_gt_20170922}")
-
-print(100*((MRtarget_gt_20120407/overdig_factor)-MRest_gt_20120407)/MRest_gt_20120407)
-print(100*((MRtarget_gt_20170922/overdig_factor)-MRest_gt_20170922)/MRest_gt_20170922)
-
-print(f"Obs: 2012-04-07: {target_gt_20120407/overdig_factor}")
-print(f"Est: 2012-04-07: {est_gt_20120407}")
-
-print(f"Obs: 2017-09-22: {target_gt_20170922/overdig_factor}")
-print(f"Est: 2017-09-22: {est_gt_20170922}")
-
-print(100*((target_gt_20120407/overdig_factor)-est_gt_20120407)/est_gt_20120407)
-print(100*((target_gt_20170922/overdig_factor)-est_gt_20170922)/est_gt_20170922)
+    BR2=[]
+    for g in tqdm(budget_reaches_redo):
+        wood_gt = gt_20170922.rio.clip([g], gt_20170922.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        BR2.append(float(result))
 
 
-np.savez('MR_eval_wood_budget.npz', MRtarget_gt_20120407 = target_gt_20120407, MRtarget_gt_20170922=target_gt_20170922, estMR_BR2=estMR_BR2, estMR_BR=estMR_BR, MRbudget_reaches=MRbudget_reaches_redo, grid2sqm=grid2sqm, overdig_factor=overdig_factor)
+    MR_BR=[]
+    for g in tqdm(MRbudget_reaches_redo):
+        wood_gt = MRgt_20120407.rio.clip([g], MRgt_20120407.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        MR_BR.append(float(result))
 
-np.savez('LR_eval_wood_budget.npz', LRtarget_gt_20120407 = target_gt_20120407, LRtarget_gt_20170922=target_gt_20170922, estLR_BR2=estBR2, estLR_BR=estBR, LRbudget_reaches=budget_reaches_redo, grid2sqm=grid2sqm, overdig_factor=overdig_factor)
+    MR_BR2=[]
+    for g in tqdm(MRbudget_reaches_redo):
+        wood_gt = MRgt_20170922.rio.clip([g], MRgt_20170922.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        MR_BR2.append(float(result))
+
+
+    np.savez('summaries/MR_meas_wood_budget.npz', MR_20120407=MR_20120407, MR_20170922=MR_20170922, threshes=threshes, MR_S=MR_S, MR_BR2=MR_BR2, MR_BR=MR_BR)
+            
+    np.savez('summaries/LR_meas_wood_budget.npz', LR_20120407=LR_20120407, LR_20170922=LR_20170922, threshes=threshes, S=S, BR2=BR2, BR=BR)
+
+else:
+
+    with np.load('summaries/MR_meas_wood_budget.npz', allow_pickle=True) as f:
+        MR_20120407 = f['MR_20120407']
+        MR_20170922 = f['MR_20170922']
+        threshes = f['threshes']
+        MR_S = f['MR_S']
+        MR_BR2 = f['MR_BR2']
+        MR_BR = f['MR_BR']
+
+    with np.load('summaries/LR_meas_wood_budget.npz', allow_pickle=True) as f:
+        LR_20120407 = f['LR_20120407']
+        LR_20170922 = f['LR_20170922']
+        # threshes = f['threshes']
+        S = f['S']
+        BR2 = f['BR2']
+        BR = f['BR']
+
+
+
+# #################
+
+if do_analysis:
+
+    estBR=[]
+    for g in tqdm(budget_reaches_redo):
+        wood_gt = LR_20120407.rio.clip([g], LR_20120407.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        estBR.append(float(result))
+
+    estBR2=[]
+    for g in tqdm(budget_reaches_redo):
+        wood_gt = LR_20170922.rio.clip([g], LR_20170922.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        estBR2.append(float(result))
+
+    estMR_BR=[]
+    for g in tqdm(MRbudget_reaches_redo):
+        wood_gt = MR_20120407.rio.clip([g], MR_20120407.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        estMR_BR.append(float(result))
+
+    estMR_BR2=[]
+    for g in tqdm(MRbudget_reaches_redo):
+        wood_gt = MR_20170922.rio.clip([g], MR_20170922.rio.crs)
+        result = (wood_gt[1]).sum().compute().to_numpy() 
+        estMR_BR2.append(float(result))
+
+
+    MRtarget_gt_20120407 = np.cumsum(np.array(MR_BR)/grid2sqm)[-1]
+    MRtarget_gt_20170922 = np.cumsum(np.array(MR_BR2)/grid2sqm)[-1]
+
+    target_gt_20120407 = np.cumsum(np.array(BR)/grid2sqm)[-1]
+    target_gt_20170922 = np.cumsum(np.array(BR2)/grid2sqm)[-1]
+
+
+    MRest_gt_20120407 = np.cumsum(np.array(estMR_BR)/grid2sqm)[-1]
+    MRest_gt_20170922 = np.cumsum(np.array(estMR_BR2)/grid2sqm)[-1]
+
+    est_gt_20120407 = np.cumsum(np.array(estBR)/grid2sqm)[-1]
+    est_gt_20170922 = np.cumsum(np.array(estBR2)/grid2sqm)[-1]
+
+
+    print(f"Obs: 2012-04-07: {MRtarget_gt_20120407/overdig_factor}")
+    print(f"Est: 2012-04-07: {MRest_gt_20120407}")
+
+    print(f"Obs: 2017-09-22: {MRtarget_gt_20170922/overdig_factor}")
+    print(f"Est: 2017-09-22: {MRest_gt_20170922}")
+
+    print(100*((MRtarget_gt_20120407/overdig_factor)-MRest_gt_20120407)/MRest_gt_20120407)
+    print(100*((MRtarget_gt_20170922/overdig_factor)-MRest_gt_20170922)/MRest_gt_20170922)
+
+    print(f"Obs: 2012-04-07: {target_gt_20120407/overdig_factor}")
+    print(f"Est: 2012-04-07: {est_gt_20120407}")
+
+    print(f"Obs: 2017-09-22: {target_gt_20170922/overdig_factor}")
+    print(f"Est: 2017-09-22: {est_gt_20170922}")
+
+    print(100*((target_gt_20120407/overdig_factor)-est_gt_20120407)/est_gt_20120407)
+    print(100*((target_gt_20170922/overdig_factor)-est_gt_20170922)/est_gt_20170922)
+
+
+    np.savez('summaries/MR_eval_wood_budget.npz', MRtarget_gt_20120407 = target_gt_20120407, MRtarget_gt_20170922=target_gt_20170922, estMR_BR2=estMR_BR2, estMR_BR=estMR_BR, MRbudget_reaches=MRbudget_reaches_redo, grid2sqm=grid2sqm, overdig_factor=overdig_factor)
+
+    np.savez('summaries/LR_eval_wood_budget.npz', LRtarget_gt_20120407 = target_gt_20120407, LRtarget_gt_20170922=target_gt_20170922, estLR_BR2=estBR2, estLR_BR=estBR, LRbudget_reaches=budget_reaches_redo, grid2sqm=grid2sqm, overdig_factor=overdig_factor)
+
+
+else:
+        
+    with np.load('summaries/LR_eval_wood_budget.npz', allow_pickle=True) as f:
+        LRtarget_gt_20120407 = f['LRtarget_gt_20120407']
+        LRtarget_gt_20170922 = f['LRtarget_gt_20170922']
+        estBR2 = f['estLR_BR2']
+        estBR = f['estLR_BR']
+
+
+    with np.load('summaries/MR_eval_wood_budget.npz', allow_pickle=True) as f:
+        MRtarget_gt_20120407 = f['MRtarget_gt_20120407']
+        MRtarget_gt_20170922 = f['MRtarget_gt_20170922']
+        estMR_BR2 = f['estMR_BR2']
+        estMR_BR = f['estMR_BR']
+
+
 
 #############################################################
 #############################################################
@@ -319,16 +380,16 @@ plt.legend()
 plt.title('b)', loc='left')
 
 plt.subplot(323)
-plt.plot(np.cumsum(np.array(MR_BR)/overdig_factor/grid2sqm), 'k-', label='Obs, MR, '+times[0])
-plt.plot(np.cumsum(np.array(MR_BR2)/overdig_factor/grid2sqm), 'k--', lw=2, label='Obs, MR, '+times[1])
+plt.plot(MR,np.cumsum(np.array(MR_BR)/overdig_factor/grid2sqm), 'k-', label='Obs, MR, '+times[0])
+plt.plot(MR,np.cumsum(np.array(MR_BR2)/overdig_factor/grid2sqm), 'k--', lw=2, label='Obs, MR, '+times[1])
 # plt.axhline(y=MRtarget_gt_20120407/overdig_factor, color='b', linestyle=':')
 # plt.axhline(y=MRtarget_gt_20170922/overdig_factor, color='b', linestyle=':')
 
-plt.plot(np.cumsum(np.array(estMR_BR)/grid2sqm), 'r-', label='Est, MR, '+times[0])
-plt.plot(np.cumsum(np.array(estMR_BR2)/grid2sqm), 'r--', lw=2, label='Est, MR, '+times[1])
+plt.plot(MR,np.cumsum(np.array(estMR_BR)/grid2sqm), 'r-', label='Est, MR, '+times[0])
+plt.plot(MR, np.cumsum(np.array(estMR_BR2)/grid2sqm), 'r--', lw=2, label='Est, MR, '+times[1])
 plt.title('c)', loc='left')
 plt.legend()
-plt.xlabel("Accounting reach (increasing downstream)"); plt.ylabel(r"Wood, m$^2$")
+plt.xlabel("Distance downstream (km)"); plt.ylabel(r"Wood, m$^2$")
 
 plt.subplot(324)
 plt.plot(np.cumsum(np.array(BR)/overdig_factor/grid2sqm), 'k-', label='Obs, LR, '+times[0])
@@ -336,10 +397,10 @@ plt.plot(np.cumsum(np.array(BR2)/overdig_factor/grid2sqm), 'k--', lw=2, label='O
 # plt.axhline(y=target_gt_20120407/overdig_factor, color='b', linestyle=':')
 # plt.axhline(y=target_gt_20170922/overdig_factor, color='b', linestyle=':')
 
-plt.plot(np.cumsum(np.array(estBR)/grid2sqm), 'r-', label='Est, LR, '+times[0])
-plt.plot(np.cumsum(np.array(estBR2)/grid2sqm), 'r--', lw=2, label='Est, LR, '+times[1])
+plt.plot(LR,np.cumsum(np.array(estBR)/grid2sqm), 'r-', label='Est, LR, '+times[0])
+plt.plot(LR,np.cumsum(np.array(estBR2)/grid2sqm), 'r--', lw=2, label='Est, LR, '+times[1])
 plt.title('d) ', loc='left')
-plt.xlabel("Accounting reach (increasing downstream)"); plt.ylabel(r"Wood, m$^2$")
+plt.xlabel("Distance downstream (km)"); plt.ylabel(r"Wood, m$^2$")
 plt.legend()
 # plt.show()
 
@@ -380,21 +441,21 @@ plt.title('e) ', loc='left')
 plt.subplot(326)
 x = np.cumsum(np.array(MR_BR)/overdig_factor/grid2sqm)
 y = np.cumsum(np.array(estMR_BR)/grid2sqm)
-plt.plot(np.abs((x-y)/y)*100, 'k', label='MR, '+times[0])
+plt.plot(MR, np.abs((x-y)/y)*100, 'k', label='MR, '+times[0])
 
 x = np.cumsum(np.array(MR_BR2)/overdig_factor/grid2sqm)
 y = np.cumsum(np.array(estMR_BR2)/grid2sqm)
-plt.plot(np.abs((x-y)/y)*100, 'r-', label='MR, '+times[1])
+plt.plot(MR, np.abs((x-y)/y)*100, 'r-', label='MR, '+times[1])
 
 x = np.cumsum(np.array(BR)/overdig_factor/grid2sqm)
 y = np.cumsum(np.array(estBR)/grid2sqm)
-plt.plot(np.abs((x-y)/y)*100, 'k--', label='LR, '+times[0])
+plt.plot(LR, np.abs((x-y)/y)*100, 'k--', label='LR, '+times[0])
 
 x = np.cumsum(np.array(BR2)/overdig_factor/grid2sqm)
 y = np.cumsum(np.array(estBR2)/grid2sqm)
-plt.plot(np.abs((x-y)/y)*100, 'r--', label='LR, '+times[1])
+plt.plot(LR, np.abs((x-y)/y)*100, 'r--', label='LR, '+times[1])
 plt.axhline(y=20, color='b', linestyle=':', lw=2, label=r'20% error')
-plt.xlabel("Accounting reach (increasing downstream)"); plt.ylabel(r"Percent error")
+plt.xlabel("Distance downstream (km)"); plt.ylabel(r"Percent error")
 plt.legend()
 plt.title('f) ', loc='left')
 
