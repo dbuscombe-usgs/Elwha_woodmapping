@@ -10,3 +10,5 @@ rm Elwha_LR_im_time_bin0_regrid.tif
 gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 Elwha_LR_im_time_bin0.tif Elwha_LR_im_time_bin0_regrid.tif
 
 rm Elwha_LR_im_time_bin0.tif
+
+gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 -t_srs epsg:6339 Elwha_LR_im_time_mean_prob.tif Elwha_LR_im_time_mean_prob_regrid.tif

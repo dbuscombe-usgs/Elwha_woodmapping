@@ -47,17 +47,17 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 20
-threads_per_worker = 2
-memory_limit='100GB'
+# n_workers = 20
+# threads_per_worker = 2
+# memory_limit='100GB'
+# # ## start client
+# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 cwd = os.getcwd()
 
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
 
-# ## start client
-client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 #############################################################
 #########################################################
@@ -103,7 +103,7 @@ y=np.array(points)[:,1]
 
 print(len(x))
 
-zMR=z
+zMR=sorted(z)
 
 
 ## https://gist.github.com/amroamroamro/1db8d69b4b65e8bc66a6
@@ -167,7 +167,7 @@ for time in times[8:]:
 ########################### make LR average detrended DEM
 ###############################################################################################
 
-dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_*.tif'))
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_2*.tif'))
 print(len(dem_files))
 
 ######### get regions 
@@ -207,14 +207,18 @@ for counter,g in tqdm(enumerate(geometries)):
     tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_global_region_{counter}.tif", dtype=dtype)
     del tmp
 
+cwd = os.getcwd()
+os.chdir("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016")
 
+os.system("gdalbuildvrt -input_file_list alltifs.txt mosaic.vrt")
+os.remove('LR_DEM_detrend_global.tif')
+os.system('gdal_translate -co "COMPRESS=LZW" mosaic.vrt LR_DEM_detrend_global.tif')
+os.remove('LR_DEM_detrend_global_regrid.tif')
+os.system('gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 LR_DEM_detrend_global.tif LR_DEM_detrend_global_regrid.tif')
 
+os.system('rm LR*global_region*.tif')
 
-# gdalbuildvrt -input_file_list alltifs.txt mosaic.vrt
-# gdal_translate -co "COMPRESS=LZW" mosaic.vrt LR_DEM_detrend_global.tif
-# gdalwarp -cutline LRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 LR_DEM_detrend_global.tif LR_DEM_detrend_global_regrid.tif
-
-
+os.chdir(cwd)
 
 
 
@@ -222,7 +226,6 @@ for counter,g in tqdm(enumerate(geometries)):
 ############################## MR
 ####################################################################
 ####################################################################
-
 
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*MR_*DEM_regrid.tif'))
 print(len(dem_files))
@@ -257,7 +260,7 @@ y=np.array(points)[:,1]
 
 print(len(x))
 
-# zLR=z
+zMR=sorted(z)
 
 # zMR = np.array(zMR)
 # zMR = zMR[zMR<25]
@@ -307,7 +310,7 @@ YY = Y.flatten()
 del Y
 # best-fit quadratic curve
 A = np.c_[np.ones(len(x)), np.vstack((x,y)).T, np.prod(np.vstack((x,y)).T, axis=1), np.vstack((x,y)).T**2]
-C,_,_,_ = scipy.linalg.lstsq(A, z)
+C,_,_,_ = scipy.linalg.lstsq(A, zMR)
 
 # evaluate it on a grid
 Z = np.dot(np.c_[np.ones(XX.shape), XX, YY, XX*YY, XX**2, YY**2], C).reshape(X.shape)
@@ -346,7 +349,7 @@ for time in times[8:]:
 ########################### make MR average detrended DEM
 ###############################################################################################
 
-dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_*.tif'))
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_2*.tif'))
 print(len(dem_files))
 
 ######### get regions 
@@ -386,6 +389,14 @@ for counter,g in tqdm(enumerate(geometries)):
     tmp.rio.to_raster(raster_path=f"../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_global_region_{counter}.tif", dtype=dtype)
     del tmp
 
-# gdalbuildvrt -input_file_list alltifs.txt mosaic.vrt
-# gdal_translate -co "COMPRESS=LZW" mosaic.vrt MR_DEM_detrend_global.tif
-# gdalwarp -cutline MRgrid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 MR_DEM_detrend_global.tif MR_DEM_detrend_global_regrid.tif
+cwd = os.getcwd()
+os.chdir("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016")
+
+os.system("gdalbuildvrt -input_file_list MR_alltifs.txt mosaic.vrt")
+os.remove('MR_DEM_detrend_global.tif')
+os.system('gdal_translate -co "COMPRESS=LZW" mosaic.vrt MR_DEM_detrend_global.tif')
+os.remove('MR_DEM_detrend_global_regrid.tif')
+os.system('gdalwarp -cutline grid_epsg6339.geojson -crop_to_cutline -dstalpha -co "COMPRESS=LZW" -tr .125 .125 MR_DEM_detrend_global.tif MR_DEM_detrend_global_regrid.tif')
+os.system('rm MR*global_region*.tif')
+
+os.chdir(cwd)

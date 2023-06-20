@@ -1,13 +1,6 @@
 ## Dan Buscombe, Marda Science
-## Apr, 2023
-##
-## Does this:
-## 1. 
-## 2. 
-## 3. 
-## 4. 
-## 5. 
-## 6. 
+## Apr-June, 2023
+#
 
 import json, os
 import rioxarray
@@ -20,6 +13,8 @@ from tqdm import tqdm
 from datetime import datetime
 import pandas as pd
 from area import area
+from skimage.measure import label, regionprops_table
+
 
 #############################################################
 #############################################################
@@ -46,39 +41,20 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 20
-threads_per_worker = 2
-memory_limit='100GB'
-
-cwd = os.getcwd()
-# run_bash = True
+# n_workers = 20
+# threads_per_worker = 2
+# memory_limit='100GB'
+#############################################################
+## start client
+# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 ## factor that converts grid uints 1/8 x 1/8
 # into units 1 x 1, i.e. 8 x 8
 grid2sqm = 64
 
-## we estimate over-ditizization factor
-overdig_factor = 1.2
+# Create variable used for time axis
+time_var = xr.Variable('time',times)
 
-# #############################################################
-# ## start client
-# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
-
-# # Create variable used for time axis
-# time_var = xr.Variable('time',times)
-
-# ######### get regions and clipper
-# # regions = sorted(glob('../raw_data/GIS/LR*ID*_epsg6339.geojson'))
-# # regions = [r for r in regions if 'pts' not in r]
-# # print("{} regions".format(len(regions)))
-
-# # geometries = []
-# # for r in regions:
-# #     with open(r) as f:
-# #         gj = json.load(f)
-# #     features = gj['features'][0]
-
-# #     geometries.append(features['geometry'])
 
 dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
 
@@ -123,41 +99,43 @@ for g in tqdm(MRbudget_reaches2):
 
 
 
-# #############################################################
-# #############################################################
+#############################################################
+#############################################################
 
-# #############################################################
-# ### LR
-# # get filtered wood probs, clipped to margins
-# wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_bin0.1_regrid_final.tif'))
-# print(len(wood_files))
+#############################################################
+### LR
+# get filtered wood probs, clipped to margins
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/LR_*cleaned.tif'))
 
-# # Load in and concatenate all individual GeoTIFFs
-# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-#                         dim=time_var)
-# # Covert our xarray.DataArray into a xarray.Dataset
-# geotiffs_ds = geotiffs_da.to_dataset('band')
+print(len(wood_files))
 
-# # Rename the variable to a more useful name
-# LRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
+# Load in and concatenate all individual GeoTIFFs
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
 
-# #############################################################
-# ### MR
-# # get filtered wood probs, clipped to margins
-# wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*wood_filtered_bin0.1_regrid_final.tif'))
-# print(len(wood_files))
+# Rename the variable to a more useful name
+LRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
-# # Load in and concatenate all individual GeoTIFFs
-# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-#                         dim=time_var)
-# # Covert our xarray.DataArray into a xarray.Dataset
-# geotiffs_ds = geotiffs_da.to_dataset('band')
+#############################################################
+### MR
+# get filtered wood probs, clipped to margins
+wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/MR_*cleaned.tif'))
 
-# # Rename the variable to a more useful name
-# MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
+print(len(wood_files))
+
+# Load in and concatenate all individual GeoTIFFs
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+
+# Rename the variable to a more useful name
+MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
 
-#######################################################
+# ######################################################
 
 # MR_BR=[]
 # for time in times:
@@ -183,6 +161,76 @@ for g in tqdm(MRbudget_reaches2):
 
 # np.savez('Wood_time_series.npz', LR_BRarr = LR_BRarr, MR_BRarr = MR_BRarr, times=times, dt=dt, grid2sqm=grid2sqm)
 
+
+######################################################
+
+    
+# MR_BR_small=[]
+# MR_BR_large=[]
+# for time in times:
+#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(MRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         label_img = label(wood_c==1)
+#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
+#         a = props['area'][np.where(props['area']<100000)[0]]
+#         result2 = np.sum(a[np.where(a>4096)[0]])
+#         result1 = np.sum(a[np.where(a<=4096)[0]])
+#         MR_BR_small.append(float(result1))
+#         MR_BR_large.append(float(result2))
+
+# #######################################################
+
+
+
+# LR_BR_small=[]
+# LR_BR_large=[]
+# for time in times:
+#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(LRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         label_img = label(wood_c==1)
+#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
+#         a = props['area'][np.where(props['area']<100000)[0]]
+#         result2 = np.sum(a[np.where(a>4096)[0]])
+#         result1 = np.sum(a[np.where(a<=4096)[0]])
+#         LR_BR_small.append(float(result1))
+#         LR_BR_large.append(float(result2))
+
+
+
+# LR_BRarr_small = np.vstack(LR_BR_small).reshape(len(times),-1)/grid2sqm
+# MR_BRarr_small = np.vstack(MR_BR_small).reshape(len(times),-1)/grid2sqm
+
+# LR_BRarr_large = np.vstack(LR_BR_large).reshape(len(times),-1)/grid2sqm
+# MR_BRarr_large = np.vstack(MR_BR_large).reshape(len(times),-1)/grid2sqm
+
+# np.savez('summaries/Wood_time_series_largepieces_smallpieces.npz', LR_BRarr_large = LR_BRarr_large, MR_BRarr_large = MR_BRarr_large, LR_BRarr_small = LR_BRarr_small, MR_BRarr_small = MR_BRarr_small, times=times, dt=dt, grid2sqm=grid2sqm)
+
+
+
+with np.load('summaries/Wood_time_series_largepieces_smallpieces.npz', allow_pickle=True) as f:
+    LR_BRarr_large = f['LR_BRarr_large']
+    MR_BRarr_large = f['MR_BRarr_large']
+    dt = f['dt']
+    grid2sqm = f['grid2sqm']
+    LR_BRarr_small = f['LR_BRarr_small']
+    MR_BRarr_small = f['MR_BRarr_small']
+
+# with np.load('summaries/Wood_time_series_bins_height_MR_thres0.15.npz', allow_pickle=True) as f:
+#     MR_BR_bin4_scaled = f['MR_BR_bin4_scaled']
+#     MR_BR_bin5_scaled = f['MR_BR_bin5_scaled']
+#     MR_BR_bin6_scaled = f['MR_BR_bin6_scaled']
+#     MR_BR_bin7_scaled = f['MR_BR_bin7_scaled']
+#     MR_BR_bin8_scaled = f['MR_BR_bin8_scaled']
+
+# with np.load('summaries/Wood_time_series_bins_height_MR_thres0.15.npz', allow_pickle=True) as f:
+#     LR_BR_bin4_scaled = f['LR_BR_bin4_scaled']
+#     LR_BR_bin5_scaled = f['LR_BR_bin5_scaled']
+#     LR_BR_bin6_scaled = f['LR_BR_bin6_scaled']
+#     LR_BR_bin7_scaled = f['LR_BR_bin7_scaled']
+#     LR_BR_bin8_scaled = f['LR_BR_bin8_scaled']
+
 with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
     LR_BRarr = f['LR_BRarr']
     MR_BRarr = f['MR_BRarr']
@@ -198,26 +246,26 @@ plt.figure(figsize=(16,16))
 plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
 plt.subplot(321)
-plt.imshow(MR_BRarr, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
-plt.colorbar()
+plt.imshow(np.flipud(MR_BRarr), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
 plt.gca().invert_yaxis()
 plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(322)
-plt.imshow(LR_BRarr, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
-plt.colorbar()
+plt.imshow(np.flipud(LR_BRarr), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
 plt.gca().invert_yaxis()
 plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(323)
-plt.imshow(np.cumsum(MR_BRarr.T,axis=0).T, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
-plt.colorbar()
+plt.imshow(np.flipud(np.cumsum(MR_BRarr.T,axis=0).T), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label(r"Cumulative wood area, m$^2$")
 plt.gca().invert_yaxis()
 plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(324)
-plt.imshow(np.cumsum(LR_BRarr.T,axis=0).T, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
-plt.colorbar()
+plt.imshow(np.flipud(np.cumsum(LR_BRarr.T,axis=0).T), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label(r"Cumulative wood area, m$^2$")
 plt.gca().invert_yaxis()
 plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
@@ -231,13 +279,97 @@ plt.title('e) ', loc='left')
 plt.subplot(326)
 plt.plot(dt,np.sum(MR_BRarr,axis=1),'k-', label='MR')
 plt.plot(dt,np.sum(LR_BRarr,axis=1),'r--', label='LR')
+
+plt.plot(dt,np.sum(MR_BRarr,axis=1)-np.sum(MR_BRarr[0,:]),'b-', label='MR, rel. start')
+plt.plot(dt,np.sum(LR_BRarr,axis=1)-np.sum(LR_BRarr[0,:]),'b--', label='LR, rel. start')
+
 plt.ylabel(r"Sum of estimated wood, m$^2$");
 plt.legend()
 plt.title('f) ', loc='left')
 # plt.show()
 
-plt.savefig("wood_spacetime_plots.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/wood_spacetime_plots.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+# plt.plot(dt[1:],np.cumsum(np.diff(np.sum(MR_BRarr,axis=1)-np.sum(MR_BRarr[0,:]))),'k-', label='MR')
+# plt.plot(dt[1:],np.cumsum(np.diff(np.sum(LR_BRarr,axis=1)-np.sum(LR_BRarr[0,:]))),'r--', label='LR')
+
+# A = []
+# for k in range(MR_BRarr.shape[0]):
+#     A.append(np.correlate(MR_BRarr[0,:],MR_BRarr[k,:],'full'))
+
+# ########################################
+# plt.figure(figsize=(16,16))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+# plt.subplot(321)
+# plt.imshow(np.vstack(A), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.show()
+
+
+# plt.subplot(321)
+# plt.imshow(MR_BRarr, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(322)
+# plt.imshow(LR_BRarr, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+
+# ########################################
+# plt.figure(figsize=(16,16))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+# plt.subplot(321)
+# plt.imshow(MR_BRarr_large, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+# plt.colorbar()
+# plt.gca().invert_yaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(322)
+# plt.imshow(LR_BRarr_large, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+# plt.colorbar()
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(323)
+# plt.imshow(np.cumsum(MR_BRarr_large.T,axis=0).T, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+# plt.colorbar()
+# plt.gca().invert_yaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(324)
+# plt.imshow(np.cumsum(LR_BRarr_large.T,axis=0).T, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+# plt.colorbar()
+# plt.gca().invert_yaxis()
+# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(325)
+# plt.plot(MR, np.sum(MR_BRarr_large,axis=0),'k-', label='MR')
+# plt.plot(LR, np.sum(LR_BRarr_large,axis=0),'r--', label='LR')
+# plt.ylabel(r"Sum of estimated wood, m$^2$"); plt.xlabel("Distance downstream (km)"); 
+# plt.legend()
+# plt.title('e) ', loc='left')
+
+# plt.subplot(326)
+# plt.plot(dt,np.sum(MR_BRarr_large,axis=1),'k-', label='MR')
+# plt.plot(dt,np.sum(LR_BRarr_large,axis=1),'r--', label='LR')
+# plt.ylabel(r"Sum of estimated wood, m$^2$");
+# plt.legend()
+# plt.title('f) ', loc='left')
+# # plt.show()
+
+# plt.savefig("wood_spacetime_plots_largewood_only.png", dpi=300, bbox_inches="tight")
+# plt.close()
 
 
 #### divide out by area of each BR for a wood concentration\
@@ -248,30 +380,35 @@ MR_BRarr_c = MR_BRarr/A_MR
 
 LR_BRarr_c = LR_BRarr/A_LR
 
+
+# MR_BRarr_c = MR_BRarr_large/A_MR
+
+# LR_BRarr_c = LR_BRarr_large/A_LR
+
 ########################################
 plt.figure(figsize=(16,16))
 plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
 plt.subplot(321)
-plt.imshow(MR_BRarr_c, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(MR_BRarr_c), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
 plt.colorbar()
 plt.gca().invert_yaxis()
 plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(322)
-plt.imshow(LR_BRarr_c, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(LR_BRarr_c), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
 plt.colorbar()
 plt.gca().invert_yaxis()
 plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(323)
-plt.imshow(np.cumsum(MR_BRarr_c.T,axis=0).T, cmap='viridis', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(np.cumsum(MR_BRarr_c.T,axis=0).T), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
 plt.colorbar()
 plt.gca().invert_yaxis()
 plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(324)
-plt.imshow(np.cumsum(LR_BRarr_c.T,axis=0).T, cmap='viridis', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(np.cumsum(LR_BRarr_c.T,axis=0).T), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
 plt.colorbar()
 plt.gca().invert_yaxis()
 plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
@@ -285,13 +422,13 @@ plt.title('e) ', loc='left')
 
 plt.subplot(326)
 plt.plot(dt,np.sum(MR_BRarr,axis=1)/np.sum(A_MR),'k-', label='MR')
-plt.plot(dt,np.sum(LR_BRarr,axis=1)/np.sum(A_MR),'r--', label='LR')
+plt.plot(dt,np.sum(LR_BRarr,axis=1)/np.sum(A_LR),'r--', label='LR')
 plt.ylabel(r"Wood concentration, m$^2$/m$^2$");
 plt.legend()
 plt.title('f) ', loc='left')
 # plt.show()
 
-plt.savefig("wood_dens_spacetime_plots.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/wood_conc_spacetime_plots.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 ##############################################################
@@ -308,6 +445,25 @@ dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
 dt_sed = np.array(dt_sed)
 
 ind = np.argsort(dt_sed)
+
+t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
+t =  np.array([float(d.strftime('%s')) for d in dt])
+
+
+fig, ax1 = plt.subplots()
+
+ax1.plot(dt, np.sum(MR_BRarr,axis=1),'k-')
+ax1.plot(dt, np.sum(LR_BRarr,axis=1),'r--')
+ax1.set_ylabel('Total wood area (m2)')
+
+
+ax2 = ax1.twinx()
+ax2.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'b-')
+ax2.set_ylabel('Daily Discharge (m3/s)', color='k')
+
+# plt.show()
+plt.savefig("summaries/flow_versus_wood.png", dpi=300, bbox_inches="tight")
+plt.close()
 
 
 ########################################
@@ -359,25 +515,40 @@ plt.plot(dt,np.sum(LR_BRarr,axis=1)/np.sum(A_MR),'r--', label='LR')
 plt.ylabel(r"Estimated wood, m$^2$")
 plt.title('d) ', loc='left')
 
-t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
-t =  np.array([float(d.strftime('%s')) for d in dt])
+
 plt.subplot(155)
-plt.plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(MR_BRarr,axis=1), 'ko')
+plt.plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(MR_BRarr,axis=1), 'bo')
+plt.plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(LR_BRarr,axis=1), 'rs')
 
 O = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
-E = np.sum(MR_BRarr,axis=1)
+E = np.sum(LR_BRarr,axis=1)
 
 A = np.vstack([O, np.ones(len(O))]).T
 m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
-plt.plot(O, m*O+ c, 'r:',lw=2, label='y = '+str(m)[:4]+'x+'+str(c)[:4])
-plt.text(20,35000,r'R$^2$ = '+str(np.min(np.corrcoef(O,E))**2)[:6])
+plt.plot(O, m*O+ c, 'r:',lw=2, label='(LR) y = '+str(m)[:4]+'x+'+str(c)[:4])
+plt.text(20,45000,r'R$^2$ = '+str(np.min(np.corrcoef(O,E))**2)[:6], color='r')
 
+E = np.sum(MR_BRarr,axis=1)
+m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+plt.plot(O, m*O+ c, 'b:',lw=2, label='(MR) y = '+str(m)[:4]+'x+'+str(c)[:4])
+plt.text(20,40000,r'R$^2$ = '+str(np.min(np.corrcoef(O,E))**2)[:6], color='b')
+
+plt.legend(fontsize=7)
 plt.ylabel(r"Estimated wood, m$^2$")
 plt.xlabel(r'Discharge, day of aerial survey  (m$^3$/s)')
 plt.title('e) ', loc='left')
 
-plt.savefig("flow_sed_2011_2016_wood_rel.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/flow_sed_2011_2016_wood_rel.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+#### plot size-frequency distribtuions in time
+
+
+
+#### autocorrelation
+
+
 
 
 # MR_BRarr = np.load('MR_eval_wood_budget.npz')

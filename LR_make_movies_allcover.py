@@ -47,34 +47,19 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 22
-threads_per_worker = 2
-memory_limit='115GB'
+# n_workers = 22
+# threads_per_worker = 2
+# memory_limit='115GB'
+## start client
+# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 cwd = os.getcwd()
 
 run_bash = False
 
-## start client
-client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
-
-#############################################################
-
-# ######### get regions and clipper
-# regions = sorted(glob('../raw_data/GIS/LR*ID*.geojson'))
-# regions = [r for r in regions if 'pts' not in r]
-# print("{} regions".format(len(regions)))
-
-# geometries = []
-# for r in regions:
-#     with open(r) as f:
-#         gj = json.load(f)
-#     features = gj['features'][0]
-
-#     geometries.append(features['geometry'])
 
 #############################################################
 #########################################################
@@ -84,19 +69,6 @@ if run_bash:
     os.chdir("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/")
     os.system("bash regridLR.sh") 
     os.chdir(cwd)
-
-
-#############################################################
-#########################################################
-# fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_10m_wgs84.geojson'))
-# fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_5m.geojson'))
-# fpoints = sorted(glob('../raw_data/GIS/LR_allpts_clipped_active_5m_v2_wgs84.geojson'))
-# with open(fpoints[0]) as f:
-#     gj = json.load(f)
-# features = gj['features']
-
-# points = [f['geometry']['coordinates'][0] for f in features]
-# print("{} sample points".format(len(points)))
 
 ######### get movie regions and clipper
 movie_regions = sorted(glob('../raw_data/GIS/LR*movie*epsg6339.geojson'))
@@ -110,19 +82,26 @@ for r in movie_regions:
 
     movie_geometries.append(features['geometry'])
 
+
+r = "../raw_data/GIS/LR_movie_bars.geojson"
+with open(r) as f:
+    gj = json.load(f)
+LR_bars = [a['geometry'] for a in gj['features']]
+
+
+
 #############################################################
 #########################################################
-## time-series at every point
+
 veg_files = sorted(glob('../raw_data/LR/LR_veg/LR_*_Prob1_regrid.tif'))
 water_files = sorted(glob('../raw_data/LR/LR_water/LR_*_Prob0_regrid.tif'))
-# dev_files = sorted(glob('../raw_data/LR/LR_dev/LR_*_Prob1_regrid.tif'))
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*LR_*DEM_regrid.tif'))
 print(len(dem_files))
 
 sed_files = sorted(glob('../raw_data/LR/LR_all/LR_*sed*_regrid.tif'))
 print(len(sed_files))
 
-wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_bin0.1_regrid_final.tif'))
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/LR_*cleaned.tif'))
 
 print(len(wood_files))
 
@@ -174,16 +153,13 @@ sed_geotiffs_ds = geotiffs_ds.rename({1: 'sed'})
 ## clean up
 water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
 veg_geotiffs_ds = veg_geotiffs_ds.drop_vars(2)
-wood_geotiffs_ds = wood_geotiffs_ds.drop_vars(2)
+# wood_geotiffs_ds = wood_geotiffs_ds.drop_vars(2)
 dem_geotiffs_ds = dem_geotiffs_ds.drop_vars(2)
 
 print(water_geotiffs_ds.to_array().shape)
 print(veg_geotiffs_ds.to_array().shape)
 print(wood_geotiffs_ds.to_array().shape)
 print(dem_geotiffs_ds.to_array().shape)
-
-# print(dem_geotiffs_ds.max().compute())
-# print(dem_geotiffs_ds.min().compute())
 
 # get timeaverage image for consistent lighting
 avim_ds = rioxarray.open_rasterio("../results/LR/LR_orthos_orig/Elwha_LR_im_time_mean_prob_regrid.tif", chunks=chunksize, dtype='uint8')
@@ -194,6 +170,9 @@ print(wood_geotiffs_ds.dims)
 
 # #########################################
 # ################ movies with histogram-matched imagery
+
+
+
 
 #############################################################
 im_files = sorted(glob('../raw_data/LR/LR_orthos_orig/Elwha_LR_*_regrid.tif'))
@@ -214,6 +193,145 @@ print(sed_geotiffs_ds.to_array().shape)
 
 ### reference image (bright)
 reference = im_geotiffs_ds.sel(time='2016-07-14')
+
+#############################################################
+#### focused movies
+
+### wood chronology - different color per time
+cmap = plt.get_cmap('inferno', len(times))
+custom_palette = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
+bounds=[0,1]
+
+## wood 
+for counter,g in tqdm(enumerate(LR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        wood_da = wood_c.wood.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        wood_da = ndimage.maximum_filter(wood_da, size=10)
+
+        if inner_counter==0:
+            fig1, ax1 = plt.subplots()
+            ax1.imshow(matched)
+        # ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
+        wood_da[wood_da==0] = np.nan
+        # ax1.imshow(wood_da, 'Reds_r', alpha=0.25)
+
+        # make a color map of fixed colors
+        cmap_tmp = matplotlib.colors.ListedColormap(['white', custom_palette[inner_counter]])
+        norm = matplotlib.colors.BoundaryNorm(bounds, cmap.N)
+        ax1.imshow(wood_da, interpolation='nearest', cmap=cmap_tmp, norm=norm, alpha=0.5)
+        plt.axis('off')
+        # plt.title(time)
+
+        # plt.show()
+        plt.savefig(f"../results/LR/LR_Bars_Wood_chron_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        # plt.close()
+        del wood_da
+
+    plt.close()
+
+
+
+
+
+
+## wood 
+for counter,g in tqdm(enumerate(LR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    sum_array = []
+    for inner_counter, time in enumerate(times):
+        # print("Working on time {}".format(time))
+        wood_da = wood_c.wood.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        wood_da = ndimage.maximum_filter(wood_da, size=10)
+        sum_array.append(wood_da)
+
+    sum_ = np.cumsum(np.dstack(sum_array),axis=-1)
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+
+        ax1.imshow(sum_[:,:,inner_counter], 'inferno', alpha=0.5)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/LR/LR_Bars_Wood_age_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+
+
+
+
+
+
+
+
+## wood 
+for counter,g in tqdm(enumerate(LR_bars)):
+    print("Working on region {}".format(counter))
+
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        wood_da = wood_c.wood.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        wood_da = ndimage.maximum_filter(wood_da, size=10)
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+        ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
+        wood_da[wood_da==0] = np.nan
+        ax1.imshow(wood_da, 'Reds_r', alpha=0.25)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/LR/LR_Bars_Wood_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del wood_da
+
+
+
+
+
+
+
 
 
 ## movie_geometries
@@ -241,8 +359,6 @@ for counter,g in tqdm(enumerate(movie_geometries)):
     plt.axis('off')
     plt.savefig(f"../results/LR/Wood_woodsum_inst_movie_{counter}.png", dpi=300, bbox_inches='tight')
     plt.close()
-
-
 
 
 ## wood only
@@ -343,7 +459,6 @@ for counter,g in tqdm(enumerate(movie_geometries)):
         plt.savefig(f"../results/LR/All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
         plt.close()
         del wood_da, dem_da, water_da, veg_da, matched
-
 
 
 ##########################################################################################

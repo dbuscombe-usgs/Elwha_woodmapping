@@ -196,7 +196,7 @@ print(sed_geotiffs_ds.to_array().shape)
 # print(dev_geotiffs_ds.to_array().shape)
 
 ### apply maximum filter
-size = 8
+size = 9
 for time in times:
     print(time)
     tmp = water_geotiffs_ds.water.sel(time=time).to_numpy()
@@ -305,12 +305,12 @@ wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 wood_geotiffs_ds = wood_geotiffs_ds.drop_vars(2)
 print(wood_geotiffs_ds.to_array().shape)
 
-size = 9
-for time in times:
-    print(time)
-    tmp = wood_geotiffs_ds.wood.sel(time=time).to_numpy()
-    tmp = ndimage.maximum_filter(tmp, size)
-    wood_geotiffs_ds.wood.sel(time=time).data = tmp
+# size = 9
+# for time in times:
+#     print(time)
+#     tmp = wood_geotiffs_ds.wood.sel(time=time).to_numpy()
+#     tmp = ndimage.maximum_filter(tmp, size)
+#     wood_geotiffs_ds.wood.sel(time=time).data = tmp
 
 # Load in and concatenate all individual GeoTIFFs
 geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood2_files],
@@ -483,7 +483,8 @@ if run_bash:
     os.system("bash wood2_mosaic_t13.sh")
 
     os.system("mv *filtered_prob.tif ../wood_detect/")
-    os.system("mv *filtered_bin0.1_regrid.tif ../wood_detect/")
+    # os.system("mv *filtered_bin0.1_regrid.tif ../wood_detect/")
+    os.system("mv *filtered_bin0.15_regrid.tif ../wood_detect/")
 
     os.chdir(cwd)
 

@@ -304,12 +304,12 @@ wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 wood_geotiffs_ds = wood_geotiffs_ds.drop_vars(2)
 print(wood_geotiffs_ds.to_array().shape)
 
-size = 8 # 1m
-for time in times:
-    print(time)
-    tmp = wood_geotiffs_ds.wood.sel(time=time).to_numpy()
-    tmp = ndimage.maximum_filter(tmp, size)
-    wood_geotiffs_ds.wood.sel(time=time).data = tmp
+# size = 8 # 1m
+# for time in times:
+#     print(time)
+#     tmp = wood_geotiffs_ds.wood.sel(time=time).to_numpy()
+#     tmp = ndimage.maximum_filter(tmp, size)
+#     wood_geotiffs_ds.wood.sel(time=time).data = tmp
 
 
 
@@ -473,7 +473,8 @@ if run_bash:
 
 
     os.system("mv *filtered_prob.tif ../wood_detect/")
-    os.system("mv *filtered_bin0.1_regrid.tif ../wood_detect/")
+    # os.system("mv *filtered_bin0.1_regrid.tif ../wood_detect/")
+    os.system("mv *filtered_bin0.15_regrid.tif ../wood_detect/")
 
     os.chdir(cwd)
 
