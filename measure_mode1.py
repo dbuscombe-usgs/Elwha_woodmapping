@@ -49,12 +49,12 @@ times = [
 ]
 
 #############################################################
-## start client
-# n_workers = 20
-# threads_per_worker = 2
-# memory_limit='50GB'
+# start client
+n_workers = 20
+threads_per_worker = 2
+memory_limit='50GB'
 
-# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 
 cwd = os.getcwd()
@@ -69,12 +69,12 @@ time_var = xr.Variable('time',times)
 
 dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
 
-brfile = '../results/LR/LR_wood/wood_detect/LR_budget_reaches.geojson'
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches.geojson'
 with open(brfile) as f:
     gj = json.load(f)
 LRbudget_reaches = gj['features']
 
-brfile = '../results/MR/MR_wood/wood_detect/MR_budget_reaches.geojson'
+brfile = '../results/MR/MR_wood/wood_detect/model1/MR_budget_reaches.geojson'
 with open(brfile) as f:
     gj = json.load(f)
 MRbudget_reaches = gj['features']
@@ -105,7 +105,7 @@ MR = np.hstack((0,np.array(dists['MR'][:43])))
 #############################################################
 ### LR
 # get filtered wood probs, clipped to margins
-wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/LR_*cleaned.tif'))
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/model1/LR_*cleaned.tif'))
 
 print(len(wood_files))
 
@@ -121,7 +121,7 @@ LRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 #############################################################
 ### MR
 # get filtered wood probs, clipped to margins
-wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/MR_*cleaned.tif'))
+wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/model1/MR_*cleaned.tif'))
 print(len(wood_files))
 
 # Load in and concatenate all individual GeoTIFFs
@@ -842,6 +842,7 @@ for time in times:
             LR_FIR.append(np.nan)
             LR_DISPERSED.append(np.nan)
 
+np.savez('summaries/LR_spatial_metrics.npz', LR_GIO = LR_GIO, LR_GIR = LR_GIR, LR_CLUSTERED = LR_CLUSTERED, LR_GTEST = LR_GTEST, LR_FTEST=LR_FTEST, LR_FIO=LR_FIO, LR_FIR=LR_FIR, LR_DISPERSED=LR_DISPERSED)
 
 #######################################################
 
@@ -913,7 +914,6 @@ for time in times:
             MR_DISPERSED.append(np.nan)
 
 
-np.savez('summaries/LR_spatial_metrics.npz', LR_GIO = LR_GIO, LR_GIR = LR_GIR, LR_CLUSTERED = LR_CLUSTERED, LR_GTEST = LR_GTEST, LR_FTEST=LR_FTEST, LR_FIO=LR_FIO, LR_FIR=LR_FIR, LR_DISPERSED=LR_DISPERSED)
 
 np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, MR_CLUSTERED = MR_CLUSTERED, MR_GTEST = MR_GTEST, MR_FTEST=MR_FTEST, MR_FIO=MR_FIO, MR_FIR=MR_FIR, MR_DISPERSED=MR_DISPERSED)
 

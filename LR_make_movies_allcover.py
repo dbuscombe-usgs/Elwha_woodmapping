@@ -94,14 +94,16 @@ LR_bars = [a['geometry'] for a in gj['features']]
 #########################################################
 
 veg_files = sorted(glob('../raw_data/LR/LR_veg/LR_*_Prob1_regrid.tif'))
-water_files = sorted(glob('../raw_data/LR/LR_water/LR_*_Prob0_regrid.tif'))
+# water_files = sorted(glob('../raw_data/LR/LR_water/LR_*_Prob0_regrid.tif'))
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*LR_*DEM_regrid.tif'))
 print(len(dem_files))
 
-sed_files = sorted(glob('../raw_data/LR/LR_all/LR_*sed*_regrid.tif'))
+# sed_files = sorted(glob('../raw_data/LR/LR_all/LR_*sed*_regrid.tif'))
+sed_files = sorted(glob('../results/LR/LR_sed/Elwha_*sed.tif'))
+
 print(len(sed_files))
 
-wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/LR_*cleaned.tif'))
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/model1/LR_*cleaned.tif'))
 
 print(len(wood_files))
 
@@ -113,14 +115,14 @@ geotiffs_ds = geotiffs_da.to_dataset('band')
 # Rename the variable to a more useful name
 wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
-#############################################################
-# Load in and concatenate all individual GeoTIFFs
-geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in water_files],
-                        dim=time_var)
-# Covert our xarray.DataArray into a xarray.Dataset
-geotiffs_ds = geotiffs_da.to_dataset('band')
-# Rename the variable to a more useful name
-water_geotiffs_ds = geotiffs_ds.rename({1: 'water'})
+# #############################################################
+# # Load in and concatenate all individual GeoTIFFs
+# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in water_files],
+#                         dim=time_var)
+# # Covert our xarray.DataArray into a xarray.Dataset
+# geotiffs_ds = geotiffs_da.to_dataset('band')
+# # Rename the variable to a more useful name
+# water_geotiffs_ds = geotiffs_ds.rename({1: 'water'})
 
 #############################################################
 # Load in and concatenate all individual GeoTIFFs
@@ -151,12 +153,12 @@ sed_geotiffs_ds = geotiffs_ds.rename({1: 'sed'})
 
 #########################################################
 ## clean up
-water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
+# water_geotiffs_ds = water_geotiffs_ds.drop_vars(2)
 veg_geotiffs_ds = veg_geotiffs_ds.drop_vars(2)
 # wood_geotiffs_ds = wood_geotiffs_ds.drop_vars(2)
 dem_geotiffs_ds = dem_geotiffs_ds.drop_vars(2)
 
-print(water_geotiffs_ds.to_array().shape)
+# print(water_geotiffs_ds.to_array().shape)
 print(veg_geotiffs_ds.to_array().shape)
 print(wood_geotiffs_ds.to_array().shape)
 print(dem_geotiffs_ds.to_array().shape)
@@ -329,6 +331,85 @@ for counter,g in tqdm(enumerate(LR_bars)):
 
 
 
+## wood + sediment
+for counter,g in tqdm(enumerate(LR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
+    sed_c = sed_geotiffs_ds.rio.clip([g], sed_geotiffs_ds.rio.crs)
+
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        wood_da = wood_c.wood.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        wood_da = ndimage.maximum_filter(wood_da, size=10)
+
+        sed_da = sed_c.sed.sel(time=time)
+        sed_da = sed_da.transpose().to_numpy().astype('float')
+        sed_da[sed_da==0] = np.nan
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+        ax1.imshow(sed_da, alpha=0.5, cmap='YlOrRd')
+
+        ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
+        wood_da[wood_da==0] = np.nan
+        ax1.imshow(wood_da, 'Reds_r', alpha=0.25)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/LR/LR_Bars_Wood_Sed_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del wood_da
+        del sed_da
+
+
+
+
+## sediment age (sum)
+for counter,g in tqdm(enumerate(LR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    sed_c = sed_geotiffs_ds.rio.clip([g], sed_geotiffs_ds.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    sum_array = []
+    for inner_counter, time in enumerate(times):
+        # print("Working on time {}".format(time))
+        sed_da = sed_c.sed.sel(time=time)
+        sed_da = sed_da.transpose().to_numpy()
+        sum_array.append(sed_da)
+
+    sum_ = np.cumsum(np.dstack(sum_array),axis=-1)
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+
+        ax1.imshow(sum_[:,:,inner_counter], 'inferno', alpha=0.5)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/LR/LR_Bars_Sed_age_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
 
 
 
@@ -397,15 +478,16 @@ for counter,g in tqdm(enumerate(movie_geometries)):
         del wood_da
 
 
+
 ##### all
-for counter,g in tqdm(enumerate(movie_geometries)):
+for counter,g in tqdm(enumerate(LR_bars)):
     print("Working on region {}".format(counter))
 
     ref_c = reference.rio.clip([g], avim_ds.rio.crs)
     im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
     wood_c = wood_geotiffs_ds.rio.clip([g], wood_geotiffs_ds.rio.crs)
     veg_c = veg_geotiffs_ds.rio.clip([g], veg_geotiffs_ds.rio.crs)
-    water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
+    # water_c = water_geotiffs_ds.rio.clip([g], water_geotiffs_ds.rio.crs)
     dem_c = dem_geotiffs_ds.rio.clip([g], dem_geotiffs_ds.rio.crs)
     sed_c = sed_geotiffs_ds.rio.clip([g], sed_geotiffs_ds.rio.crs)
 
@@ -415,50 +497,63 @@ for counter,g in tqdm(enumerate(movie_geometries)):
     for inner_counter, time in enumerate(times):
         print("Working on time {}".format(time))
 
-        fig1, ax1 = plt.subplots()
-
         im_da = tmp_da.sel(time=time).transpose()/255.
         refim_da = reftmp_da.transpose()/255.
 
         matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
 
-        ax1.imshow(matched)
-
-        water_da = water_c.water.sel(time=time)
-        water_da = water_da.transpose().to_numpy()
-        water_da = ndimage.maximum_filter(water_da, size=10)
-        water_da[water_da<.2] = np.nan
-        ax1.imshow(water_da,'Blues', alpha=0.5)
-
         veg_da = veg_c.veg.sel(time=time)
         veg_da = veg_da.transpose().to_numpy()
+        mask = veg_da==0
+
         veg_da = ndimage.maximum_filter(veg_da, size=10)
-        veg_da[veg_da<.5] = np.nan        
-        ax1.imshow(veg_da,'Purples', alpha=0.5)
+        veg_da[veg_da<.5] = np.nan  
+        veg_da[veg_da>0]=1
 
         sed_da = sed_c.sed.sel(time=time)
         sed_da = sed_da.transpose().to_numpy().astype('float64')
-        sed_da[sed_da<.5] = np.nan        
-        ax1.imshow(sed_da,'autumn_r', alpha=0.5)
+        sed_da[sed_da<.5] = np.nan       
 
         wood_da = wood_c.wood.sel(time=time)
         wood_da = wood_da.transpose().to_numpy()
-        wood_da = ndimage.maximum_filter(wood_da, size=10)
+        # wood_da = ndimage.maximum_filter(wood_da, size=10)
         wood_da[wood_da==0] = np.nan
+
+        water_da = np.ones_like(wood_da, dtype=np.float32)
+
+        water_da[wood_da==1] = np.nan
+        water_da[sed_da==1] = np.nan
+        water_da[veg_da==1] = np.nan
+
+        water_da[mask==1] = np.nan
+        water_da[matched[:,:,0]==0] = np.nan
+
+
+        # water_da = water_c.water.sel(time=time)
+        # water_da = water_da.transpose().to_numpy()
+        # water_da = ndimage.maximum_filter(water_da, size=10)
+        # water_da[water_da<.2] = np.nan
+
+        fig1, ax1 = plt.subplots()
+
+        ax1.imshow(matched)
+        ax1.imshow(water_da,'Blues_r', alpha=0.5)
+        ax1.imshow(veg_da,'Purples_r', alpha=0.5)
+        ax1.imshow(sed_da,'autumn_r', alpha=0.5)
         ax1.imshow(wood_da,'Reds_r')
 
-        dem_da = dem_c.dem.sel(time=time)
-
-        CS1 = ax1.contour(dem_da.transpose(), levels=8, cmap='Greys', alpha=0.5)
-        ax1.clabel(CS1, CS1.levels[1::2], inline=True, fontsize=5)
+        # dem_da = dem_c.dem.sel(time=time)
+        # CS1 = ax1.contour(dem_da.transpose(), levels=8, cmap='Greys', alpha=0.5)
+        # ax1.clabel(CS1, CS1.levels[1::2], inline=True, fontsize=5)
         plt.title(time)
 
         # plt.show()
 
         plt.axis('off')
-        plt.savefig(f"../results/LR/All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.savefig(f"../results/LR/All_inst_movie_bars_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
         plt.close()
-        del wood_da, dem_da, water_da, veg_da, matched
+        del wood_da, water_da, veg_da, matched #dem_da, 
+
 
 
 ##########################################################################################

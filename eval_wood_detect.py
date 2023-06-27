@@ -58,17 +58,17 @@ for r in regions:
     geometries.append(features['geometry'])
 
 
-brfile = '../results/LR/LR_wood/wood_detect/LR_budget_reaches.geojson'
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches.geojson'
 with open(brfile) as f:
     gj = json.load(f)
 budget_reaches = gj['features']
 
-brfile = '../results/MR/MR_wood/wood_detect/MR_budget_reaches.geojson'
+brfile = '../results/MR/MR_wood/wood_detect/model1/MR_budget_reaches.geojson'
 with open(brfile) as f:
     gj = json.load(f)
 MRbudget_reaches = gj['features']
 
-gcfile = '../results/LR/LR_wood/wood_detect/LR_global_clipper.geojson'
+gcfile = '../results/LR/LR_wood/wood_detect/model1/LR_global_clipper.geojson'
 with open(gcfile) as f:
     gj = json.load(f)
 global_clipper = gj['features']
@@ -140,8 +140,8 @@ LR_target_gt_20170922_large = np.sum(a[np.where(a>4096)[0]])
 
 
 ######### estimated
-LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/LR_20170922_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/LR_20120407_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/model1/LR_20170922_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/model1/LR_20120407_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
 
 # ### sum of all wood pixels is the target metric
 LR_est_gt_20170922 = LR_20170922[1].sum().compute().to_numpy()
@@ -224,8 +224,8 @@ a = props['area'][np.where(props['area']<100000)[0]]
 MR_target_gt_20170922_large = np.sum(a[np.where(a>4096)[0]])
 
 ######### estimated
-MR_20170922 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/MR_20170922_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-MR_20120407 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/MR_20120407_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+MR_20170922 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/model1/MR_20170922_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+MR_20120407 = rioxarray.open_rasterio("../results/MR/MR_wood/wood_detect/model1/MR_20120407_epsg6339_cleaned.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
 
 # ### sum of all wood pixels is the target metric
 MR_est_gt_20170922 = MR_20170922[1].sum().compute().to_numpy()
@@ -442,18 +442,21 @@ with np.load('summaries/LR_meas_wood_budget.npz', allow_pickle=True) as f:
 
 
 
+# O = [MR_target_gt_20120407,MR_target_gt_20170922,LR_target_gt_20120407,LR_target_gt_20170922]
+# E = [MR_est_gt_20120407,MR_est_gt_20170922,LR_est_gt_20120407,LR_est_gt_20170922]
+
+ovdf = 1.0 #1.2
+
+E = [np.cumsum(np.array(MR_estBR)/grid2sqm)[-1],np.cumsum(np.array(MR_estBR2)/grid2sqm)[-1],np.cumsum(np.array(LR_estBR)/grid2sqm)[-1],np.cumsum(np.array(LR_estBR2)/grid2sqm)[-1]]
+O = [np.cumsum(np.array(MR_BR)/grid2sqm)[-1],np.cumsum(np.array(MR_BR2)/grid2sqm)[-1],np.cumsum(np.array(LR_BR)/grid2sqm)[-1],np.cumsum(np.array(LR_BR2)/grid2sqm)[-1]]
+
+O = np.array(O)/ovdf
 
 ###########==================================================
 plt.figure(figsize=(14,14))
 plt.subplots_adjust(wspace=0.2, hspace=0.2)
 
 plt.subplot(331)
-
-# O = [MR_target_gt_20120407,MR_target_gt_20170922,LR_target_gt_20120407,LR_target_gt_20170922]
-# E = [MR_est_gt_20120407,MR_est_gt_20170922,LR_est_gt_20120407,LR_est_gt_20170922]
-
-E = [np.cumsum(np.array(MR_estBR)/grid2sqm)[-1],np.cumsum(np.array(MR_estBR2)/grid2sqm)[-1],np.cumsum(np.array(LR_estBR)/grid2sqm)[-1],np.cumsum(np.array(LR_estBR2)/grid2sqm)[-1]]
-O = [np.cumsum(np.array(MR_BR)/grid2sqm)[-1],np.cumsum(np.array(MR_BR2)/grid2sqm)[-1],np.cumsum(np.array(LR_BR)/grid2sqm)[-1],np.cumsum(np.array(LR_BR2)/grid2sqm)[-1]]
 
 plt.loglog(O[0],E[0],'ko',label='MR, 2012-04-07')
 plt.plot(O[1],E[1],'ro',label='MR, 2017-09-22')
@@ -480,9 +483,9 @@ plt.title('a) MR+LR', loc='left')
 
 plt.subplot(332)
 plt.loglog(bins1[1:]/grid2sqm, MR_frq3,'k-',lw=2, label='Obs., 2012-04-07')
-plt.plot(bins1[1:]/grid2sqm, MR_frq4,'k--',lw=2, label='Est., 2012-04-07')
+plt.plot(bins1[1:]/grid2sqm, MR_frq4,'r-',lw=2, label='Est., 2012-04-07')
 
-plt.plot(bins1[1:]/grid2sqm, MR_frq1,'r-',lw=2, label='Obs., 2017-09-22')
+plt.plot(bins1[1:]/grid2sqm, MR_frq1,'k--',lw=2, label='Obs., 2017-09-22')
 plt.plot(bins1[1:]/grid2sqm, MR_frq2,'r--',lw=2, label='Est., 2017-09-22')
 plt.legend()
 plt.ylabel(r'Frequency')
@@ -491,16 +494,16 @@ plt.title('b) MR', loc='left')
 
 plt.subplot(333)
 plt.loglog(bins1[1:]/grid2sqm, LR_frq3,'k-',lw=2, label='Obs. 2012-04-07')
-plt.plot(bins1[1:]/grid2sqm, LR_frq4,'k--',lw=2, label='Est. 2012-04-07')
+plt.plot(bins1[1:]/grid2sqm, LR_frq4,'r-',lw=2, label='Est. 2012-04-07')
 
-plt.plot(bins1[1:]/grid2sqm, LR_frq1,'r-',lw=2, label='Obs. 2017-09-22')
+plt.plot(bins1[1:]/grid2sqm, LR_frq1,'k--',lw=2, label='Obs. 2017-09-22')
 plt.plot(bins1[1:]/grid2sqm, LR_frq2,'r--',lw=2, label='Est. 2017-09-22')
 plt.legend()
 plt.ylabel(r'Frequency')
 plt.xlabel(r"Wood pile or piece area (m$^2$)")
 plt.title('c) LR', loc='left')
 
-plt.subplot(3,1,2)
+plt.subplot(223)
 plt.plot(MR,np.cumsum(np.array(MR_BR)/grid2sqm), 'k--', label='Obs. (large) '+times[0])
 plt.plot(MR,np.cumsum(np.array(MR_estBR)/grid2sqm), 'r--', label='Est. (large) '+times[0])
 
@@ -510,7 +513,7 @@ plt.title('d) MR', loc='left')
 plt.legend()
 plt.xlabel("Distance downstream (km)"); plt.ylabel(r"Cumulative sum of wood, m$^2$")
 
-plt.subplot(313)
+plt.subplot(224)
 plt.plot(LR,np.cumsum(np.array(LR_BR)/grid2sqm), 'k--', label='Obs. (large) '+times[0])
 plt.plot(LR,np.cumsum(np.array(LR_estBR)/grid2sqm), 'r--', label='Est. (large) '+times[0])
 
@@ -521,83 +524,165 @@ plt.xlabel("Distance downstream (km)"); plt.ylabel(r"Cumulative sum of wood, m$^
 plt.legend()
 # plt.show()
 
-
 plt.savefig("summaries/MR_LR_wood_eval.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 
 
 
-# # #############################################################
-# # #############################################################
-# if do_analysis:
+# #############################################################
+# #############################################################
 
-#     #############################################################
-#     ### LR
-#     # get filtered wood probs, clipped to margins
-#     wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/Elwha_LR_*wood_filtered_prob_regrid.tif'))
-#     print(len(wood_files))
+#############################################################
+### LR
+# get filtered wood probs, clipped to margins
+wood_files = sorted(glob('../results/LR/LR_wood/wood_detect/model2/Elwha_LR_*wood_filtered_prob_regrid.tif'))
+print(len(wood_files))
 
-#     wood_files = [w for w in wood_files for t in times if t in w]
+wood_files = [w for w in wood_files for t in times if t in w]
 
-#     print(wood_files)
+print(wood_files)
 
-#     # Load in and concatenate all individual GeoTIFFs
-#     geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-#                             dim=time_var)
-#     # Covert our xarray.DataArray into a xarray.Dataset
-#     geotiffs_ds = geotiffs_da.to_dataset('band')
+# Load in and concatenate all individual GeoTIFFs
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
 
-#     # Rename the variable to a more useful name
-#     wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
+# Rename the variable to a more useful name
+wood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
-#     #############################################################
-#     ### MR
-#     # get filtered wood probs, clipped to margins
-#     wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/Elwha_MR_*wood_filtered_prob_regrid.tif'))
-#     print(len(wood_files))
+# #############################################################
+### MR
+# get filtered wood probs, clipped to margins
+wood_files = sorted(glob('../results/MR/MR_wood/wood_detect/model2/Elwha_MR_*wood_filtered_prob_regrid.tif'))
+print(len(wood_files))
 
-#     wood_files = [w for w in wood_files for t in times if t in w]
-#     print(wood_files)
+wood_files = [w for w in wood_files for t in times if t in w]
+print(wood_files)
 
-#     # Load in and concatenate all individual GeoTIFFs
-#     geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
-#                             dim=time_var)
-#     # Covert our xarray.DataArray into a xarray.Dataset
-#     geotiffs_ds = geotiffs_da.to_dataset('band')
+# Load in and concatenate all individual GeoTIFFs
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in wood_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
 
-#     # Rename the variable to a more useful name
-#     MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
+# Rename the variable to a more useful name
+MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
-#     #############################################################
-#     #############################################################
-
-
-#     ## any blob with area > 100000 is considered error
-#     ## blobs > 4096 area (< 64x64 px) are accounted for separately
-
-#     threshes = np.arange(.05,.5,.01)
-#     S=[]; S_ = []
-#     for thres in threshes:
-#         for time in times:
-
-#             image = wood_geotiffs_ds.wood.sel(time=time).to_numpy()
-#             label_img = label(image>thres)
-#             props = regionprops_table(label_img, properties=('area','axis_minor_length'))
-#             a = props['area'][np.where(props['area']<100000)[0]]
-#             result_ = np.sum(a[np.where(a>4096)[0]])
-#             result = np.sum(a)                
-#             # result = (image>thres).sum()#.compute().to_numpy()
-#             print(f"{thres}: {result}")
-#             S.append(float(result))
-#             S_.append(float(result_))
+#############################################################
+#############################################################
 
 
-#     # LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2017-09-22_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-#     # LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2012-04-07_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+## any blob with area > 100000 is considered error
+## blobs > 4096 area (< 64x64 px) are accounted for separately
 
-#     # LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2017-09-22_wood_filtered_bin0.15_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
-#     # LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2012-04-07_wood_filtered_bin0.15_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+# threshes = np.arange(.05,.6,.05)
+# S=[]; S_ = []
+# for thres in threshes:
+#     for time in times:
+
+#         image = wood_geotiffs_ds.wood.sel(time=time).to_numpy()
+#         label_img = label(image>thres)
+#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
+#         a = props['area'][np.where(props['area']<100000)[0]]
+#         result_ = np.sum(a[np.where(a>4096)[0]])
+#         result = np.sum(a)                
+#         # result = (image>thres).sum()#.compute().to_numpy()
+#         print(f"{thres}: {result}")
+#         S.append(float(result))
+#         S_.append(float(result_))
+#         del image, label_img, a, result, result_, props
+
+
+# MR_S=[]; MR_S_ = []
+# for thres in threshes:
+#     for time in times:
+
+#         image = MRwood_geotiffs_ds.wood.sel(time=time).to_numpy()
+#         label_img = label(image>thres)
+#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
+#         a = props['area'][np.where(props['area']<100000)[0]]
+#         result_ = np.sum(a[np.where(a>4096)[0]])
+#         result = np.sum(a)                
+#         # result = (image>thres).sum()#.compute().to_numpy()
+#         print(f"{thres}: {result}")
+#         MR_S.append(float(result))
+#         MR_S_.append(float(result_))
+#         del image, label_img, a, result, result_, props
+
+
+np.savez('summaries/MR_eval_wood_prob_thres.npz', MR_S = MR_S, MR_S_=MR_S_, threshes=threshes)
+
+with np.load('summaries/MR_eval_wood_prob_thres.npz', allow_pickle=True) as f:
+    MR_S = f['MR_S']
+    MR_S_ = f['MR_S_']
+    threshes = f['threshes']
+
+np.savez('summaries/LR_eval_wood_prob_thres.npz', LR_S = S, LR_S_=S_, threshes=threshes)
+
+with np.load('summaries/LR_eval_wood_prob_thres.npz', allow_pickle=True) as f:
+    LR_S = f['LR_S']
+    LR_S_ = f['LR_S_']
+    threshes = f['threshes']
+
+
+f1=2.2
+plt.figure(figsize=(8,8))
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+plt.subplot(221)
+plt.semilogy(threshes, (np.array(LR_S[::2])/grid2sqm)/f1, 'r-', lw=1, label='Est, LR, all, '+times[0])
+plt.plot(threshes, (np.array(LR_S_[::2])/grid2sqm)/f1, 'b:', lw=1, label='Est, LR, large, '+times[0])
+
+plt.axhline(y=O[0], color='r', linestyle='--', label='Obs, LR, '+times[0])
+plt.axvline(x=.25, linestyle='--')
+plt.xlabel('Threshold wood probability')
+plt.ylabel(r"Wood, m$^2$"); #plt.ylim(7500,35000)
+plt.legend()
+plt.title('a)', loc='left')
+
+plt.subplot(222)
+plt.semilogy(threshes, (np.array(LR_S[1::2])/grid2sqm)/f1, 'k-', lw=2, label='Est, LR, all, '+times[1])
+plt.plot(threshes, (np.array(LR_S_[1::2])/grid2sqm)/f1, 'b:', lw=2, label='Est, LR, large, '+times[1])
+plt.axhline(y=O[1], color='k', linestyle='--', label='Obs, LR, '+times[1])
+plt.axvline(x=.25, linestyle='--')
+plt.xlabel('Threshold wood probability')
+plt.ylabel(r"Wood, m$^2$"); #plt.ylim(7500,35000)
+plt.legend()
+plt.title('b)', loc='left')
+
+plt.subplot(223)
+plt.semilogy(threshes, (np.array(MR_S[::2])/grid2sqm), 'r-', lw=1, label='Est, MR, all, '+times[0])
+plt.plot(threshes, (np.array(MR_S_[::2])/grid2sqm), 'b:', lw=1, label='Est, MR, large, '+times[0])
+
+plt.axhline(y=O[2], color='r', linestyle='--', label='Obs, LR, '+times[0])
+plt.axvline(x=.25, linestyle='--')
+plt.xlabel('Threshold wood probability')
+plt.ylabel(r"Wood, m$^2$"); #plt.ylim(7500,35000)
+plt.legend()
+plt.title('c)', loc='left')
+
+plt.subplot(224)
+plt.semilogy(threshes, (np.array(MR_S[1::2])/grid2sqm)/f1, 'k-', lw=2, label='Est, MR, all, '+times[1])
+plt.plot(threshes, (np.array(MR_S_[1::2])/grid2sqm)/f1, 'b:', lw=2, label='Est, MR, large, '+times[1])
+plt.axhline(y=O[3], color='k', linestyle='--', label='Obs, MR, '+times[1])
+plt.axvline(x=.25, linestyle='--')
+plt.xlabel('Threshold wood probability')
+plt.ylabel(r"Wood, m$^2$"); #plt.ylim(7500,35000)
+plt.legend()
+plt.title('d)', loc='left')
+
+# plt.show()
+plt.savefig("summaries/MR_LR_wood_eval_thres_prob.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+    # LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2017-09-22_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    # LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2012-04-07_wood_filtered_bin0.1_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+
+    # LR_20170922 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2017-09-22_wood_filtered_bin0.15_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
+    # LR_20120407 = rioxarray.open_rasterio("../results/LR/LR_wood/wood_detect/Elwha_LR_2012-04-07_wood_filtered_bin0.15_regrid_final.tif", chunks=chunksize, dtype=dtype).to_dataset('band')
 
 
 #     #############################################################
