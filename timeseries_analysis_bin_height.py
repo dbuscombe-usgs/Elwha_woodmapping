@@ -1150,7 +1150,7 @@ plt.plot(dt, np.cumsum(np.mean(LR_BR_bin11,axis=1)), label='9.5m<= h <10.5m')
 plt.plot(dt, np.cumsum(np.mean(LR_BR_bin12,axis=1)), label='10.5m<= h <11.5m')
 plt.plot(dt, np.cumsum(np.mean(LR_BR_bin13,axis=1))+np.cumsum(np.mean(LR_BR_bin14,axis=1)), label='h>11.5m')
 plt.title('e) LR', loc='left')
-plt.ylabel(r'Cumulative sum of wood (m$^2$)')
+plt.ylabel(r'Cumulative sum of sediment (m$^2$)')
 
 plt.subplot(236)
 plt.semilogy(LR, np.cumsum(np.mean(LR_BR_bin1,axis=0))+np.cumsum(np.mean(LR_BR_bin2,axis=0))+np.cumsum(np.mean(LR_BR_bin3,axis=0))+np.cumsum(np.mean(LR_BR_bin4,axis=0)),  label='h <3.5m')

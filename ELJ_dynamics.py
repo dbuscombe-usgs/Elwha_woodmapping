@@ -40,3 +40,12 @@ times = [
     '2016-09-30',
     '2017-09-22'
 ]
+
+
+elj_file = '../raw_data/20101208_ELJ_EX/20101208_ELJ_EX.geojson'
+with open(elj_file) as f:
+    gj = json.load(f)
+ELJs = gj['features']
+
+years = [f['properties']['YEAR_BUILT'] for f in ELJs]
+
