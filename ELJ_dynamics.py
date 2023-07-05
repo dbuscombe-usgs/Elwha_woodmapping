@@ -81,6 +81,7 @@ times = [
     '2017-09-22'
 ]
 
+dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
 
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
@@ -161,43 +162,63 @@ def rescale_array(dat, mn, mx):
 im_1_22 = rescale_array(im_1_22.to_numpy(),0,255)
 # im_22 = 255.0 * (refim_da2 / 255.0)**2.2
 
+ind = np.argsort(years)
+xsorted = np.array(x)[ind]
+ysorted = np.array(y)[ind]
+
+tmp = []
+for xx,yy in zip(xsorted,ysorted):
+    tmp.append(wood_c.wood.sel(x=xx,y=yy, method="nearest").to_numpy())
+
+tmp = np.vstack(tmp)
+tmp[tmp==0]=np.nan
+
+
+
+
 
 plt.figure(figsize=(16,16))
 plt.subplots_adjust(wspace=0.2, hspace=0.2)
+
 plt.subplot(221)
 # refim_da.plot.imshow()
-plt.imshow(np.flipud(refim_da1), origin="upper", extent = [refim_da1.y.max().to_numpy(),refim_da1.y.min().to_numpy(),refim_da1.x.min().to_numpy(),refim_da1.x.max().to_numpy()]) #aspect="equal"
+plt.imshow(np.rot90(refim_da1), origin="lower", extent = [refim_da1.x.min().to_numpy(),refim_da1.x.max().to_numpy(),refim_da1.y.min().to_numpy(),refim_da1.y.max().to_numpy()]) #aspect="equal"
 plt.setp( plt.gca().xaxis.get_majorticklabels(), rotation=45 )
 
-scatt = plt.scatter(y,x,20,years, cmap='Reds', lw=1, edgecolors='k')
+scatt = plt.scatter(x,y,20,years, cmap='Reds', lw=1, edgecolors='k')
 cbar=plt.colorbar(scatt, shrink=0.5)
 cbar.set_label("ELJ construction date")
-plt.xlabel('Northing (m)')
-plt.ylabel('Easting (m)')
+plt.ylabel('Northing (m)')
+plt.xlabel('Easting (m)')
 plt.title("a)", loc='left')
 
 plt.subplot(222)
-plt.imshow(np.flipud(im_1_22.astype(np.uint8)), origin="upper", extent = [refim_da2.y.max().to_numpy(),refim_da2.y.min().to_numpy(),refim_da2.x.min().to_numpy(),refim_da2.x.max().to_numpy()]) #aspect="equal"
+plt.imshow(np.rot90(im_1_22.astype(np.uint8)), origin="lower", extent = [refim_da2.x.min().to_numpy(),refim_da2.x.max().to_numpy(),refim_da2.y.min().to_numpy(),refim_da2.y.max().to_numpy()]) #aspect="equal"
 plt.setp( plt.gca().xaxis.get_majorticklabels(), rotation=45 )
-plt.plot(y,x,'wx', markersize=4, label='ELJ')
-plt.legend()
-im=plt.imshow(np.flipud(wood_da), alpha=1, cmap='inferno', vmin=0, vmax=1, origin='upper', extent = [refim_da2.y.max().to_numpy(),refim_da2.y.min().to_numpy(),refim_da2.x.min().to_numpy(),refim_da2.x.max().to_numpy()])
+plt.plot(x,y,'wx', markersize=4, label='ELJ')
+# plt.legend()
+im=plt.imshow(np.rot90(wood_da), alpha=1, cmap='inferno', vmin=0, vmax=1, origin='lower', extent = [refim_da2.x.min().to_numpy(),refim_da2.x.max().to_numpy(),refim_da2.y.min().to_numpy(),refim_da2.y.max().to_numpy()])
 
 plt.setp( plt.gca().xaxis.get_majorticklabels(), rotation=45)
 
 cbar = plt.colorbar(im, shrink=0.5)
 cbar.set_label("Wood persistence (-)")
-plt.xlabel('Northing (m)')
-plt.ylabel('Easting (m)')
+plt.ylabel('Northing (m)')
+plt.xlabel('Easting (m)')
 plt.title("b)", loc='left')
 
+plt.subplot(223)
+plt.pcolormesh(dt,np.arange(37), tmp, cmap='bwr')
+plt.gca().set_yticks(np.arange(0,37,2))
+plt.gca().set_yticklabels(years[ind][::2])
+plt.ylabel('Year of ELJ construction')
+plt.title("c)", loc='left')
+
+plt.subplot(224)
+plt.plot(dt,np.nansum(tmp,axis=0))
+plt.ylabel('Number of active ELJs')
+plt.title("d)", loc='left')
+
 # plt.show()
-plt.savefig("summaries/ELJ_dynamics.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/ELJ_dynamics_timesummery.png", dpi=300, bbox_inches="tight")
 plt.close()
-
-
-
-# import cartopy.crs as ccrs
-# ax = plt.subplot(projection=ccrs.PlateCarree())
-# da.plot.pcolormesh(x="lon", y="lat", ax=ax)
-# ax.scatter(lon, lat, transform=ccrs.PlateCarree())
