@@ -49,10 +49,10 @@ times = [
 ]
 
 #############################################################
-# start client
+# # start client
 n_workers = 20
 threads_per_worker = 2
-memory_limit='50GB'
+memory_limit='20GB'
 
 client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
@@ -137,186 +137,339 @@ MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 #############################################################
 # get mean detrended dems
 
-####### MR
-MR_detrend_dem = rioxarray.open_rasterio("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_global_regrid.tif", chunks=chunksize, dtype=dtype)
-MR_detrend_dem = MR_detrend_dem.to_dataset('band').persist()
-print(MR_detrend_dem.dims)
+# ####### MR
+# MR_detrend_dem = rioxarray.open_rasterio("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_global_regrid.tif", chunks=chunksize, dtype=dtype)
+# MR_detrend_dem = MR_detrend_dem.to_dataset('band').persist()
+# print(MR_detrend_dem.dims)
 
 
-####### LR
-LR_detrend_dem = rioxarray.open_rasterio("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_global_regrid.tif", chunks=chunksize, dtype=dtype)
-LR_detrend_dem = LR_detrend_dem.to_dataset('band').persist()
-print(LR_detrend_dem.dims)
+# ####### LR
+# LR_detrend_dem = rioxarray.open_rasterio("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_global_regrid.tif", chunks=chunksize, dtype=dtype)
+# LR_detrend_dem = LR_detrend_dem.to_dataset('band').persist()
+# print(LR_detrend_dem.dims)
+
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_2*.tif'))
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+MR_dem_detrend_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
+
+
+dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_2*.tif'))
+geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
+                        dim=time_var)
+# Covert our xarray.DataArray into a xarray.Dataset
+geotiffs_ds = geotiffs_da.to_dataset('band')
+# Rename the variable to a more useful name
+LR_dem_detrend_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
+
 
 #############################################
 
 
-#### MR
-wood0 = MRwood_geotiffs_ds.wood.sel(time=times[0])
+# #### MR
+# wood0 = MRwood_geotiffs_ds.wood.sel(time=times[0])
 
-MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
-for time in times[1:]:
-    tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-    for g in tqdm(MRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
+# MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
+# for time in times[1:]:
+#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(MRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
 
-        MR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-        MR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-        MR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
-        MR_PC.append(pcc)
-        MR_PV.append(pval)
+#         MR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#         MR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#         MR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+#         MR_PC.append(pcc)
+#         MR_PV.append(pval)
 
-#### LR
-wood0 = LRwood_geotiffs_ds.wood.sel(time=times[0])
+# #### LR
+# wood0 = LRwood_geotiffs_ds.wood.sel(time=times[0])
 
-LR_MO=[]; LR_MC = []; LR_IC = []; LR_PC=[]; LR_PV=[]
-for time in times[1:]:
-    tmp = LRwood_geotiffs_ds.wood.sel(time=time)
-    for g in tqdm(LRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
+# LR_MO=[]; LR_MC = []; LR_IC = []; LR_PC=[]; LR_PV=[]
+# for time in times[1:]:
+#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(LRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
 
-        LR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-        LR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-        LR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
-        LR_PC.append(pcc)
-        LR_PV.append(pval)
-
-
-LR_IC = np.array(LR_IC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MO = np.array(LR_MO).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MC = np.array(LR_MC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC = np.array(LR_PC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV = np.array(LR_PV).reshape(len(times)-1,len(LRbudget_reaches_redo))
-
-MR_IC = np.array(MR_IC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MO = np.array(MR_MO).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MC = np.array(MR_MC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC = np.array(MR_PC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV = np.array(MR_PV).reshape(len(times)-1,len(MRbudget_reaches_redo))
+#         LR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#         LR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#         LR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+#         LR_PC.append(pcc)
+#         LR_PV.append(pval)
 
 
-np.savez('summaries/LR_association_metrics.npz', LR_IC = LR_IC, LR_MO = LR_MO, LR_MC = LR_MC, LR_PC = LR_PC, LR_PV=LR_PV)
-np.savez('summaries/MR_association_metrics.npz', MR_IC = MR_IC, MR_MO = MR_MO, MR_MC = MR_MC, MR_PC = MR_PC, MR_PV=LR_PV)
+# LR_IC = np.array(LR_IC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_MO = np.array(LR_MO).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_MC = np.array(LR_MC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC = np.array(LR_PC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV = np.array(LR_PV).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
-########################################
+# MR_IC = np.array(MR_IC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_MO = np.array(MR_MO).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_MC = np.array(MR_MC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC = np.array(MR_PC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV = np.array(MR_PV).reshape(len(times)-1,len(MRbudget_reaches_redo))
 
-### per elevation bin
-#### MR
-wood0 = MRwood_geotiffs_ds.wood.sel(time=times[0])
+
+# np.savez('summaries/LR_association_metrics.npz', LR_IC = LR_IC, LR_MO = LR_MO, LR_MC = LR_MC, LR_PC = LR_PC, LR_PV=LR_PV)
+# np.savez('summaries/MR_association_metrics.npz', MR_IC = MR_IC, MR_MO = MR_MO, MR_MC = MR_MC, MR_PC = MR_PC, MR_PV=LR_PV)
+
+
+
+with np.load('summaries/LR_association_metrics.npz', allow_pickle=True) as f:
+    LR_IC = f['LR_IC']
+    LR_MO = f['LR_MO']
+    LR_MC = f['LR_MC']
+    LR_PC = f['LR_PC']
+    LR_PV = f['LR_PV']
+
+with np.load('summaries/MR_association_metrics.npz', allow_pickle=True) as f:
+    MR_IC = f['MR_IC']
+    MR_MO = f['MR_MO']
+    MR_MC = f['MR_MC']
+    MR_PC = f['MR_PC']
+    MR_PV = f['MR_PV']
+
+
+
+
+
+# ########################################
+# plt.figure(figsize=(16,16))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+# plt.subplot(321)
+# plt.imshow(np.flipud(MR_IC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# # plt.subplot(332)
+# # plt.imshow(np.flipud(MR_PC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# # cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
+# # plt.gca().invert_yaxis()
+# # plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(322)
+# plt.imshow(np.flipud(MR_MC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Manders co-location coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(323)
+# plt.imshow(np.flipud(LR_IC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# # plt.subplot(335)
+# # plt.imshow(np.flipud(LR_PC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# # cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
+# # plt.gca().invert_yaxis()
+# # plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(324)
+# plt.imshow(np.flipud(LR_MC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Manders co-location coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# # plt.subplot(337)
+# # plt.plot(MR, np.nanmean(MR_PC,axis=0),'k-', label='MR')
+# # plt.plot(LR, np.nanmean(LR_PC,axis=0),'r--', label='LR')
+# # plt.ylabel(r"Mean autocorrelation"); plt.xlabel("Distance downstream (km)"); 
+# # plt.legend()
+# # plt.title('g) ', loc='left')
+
+# plt.subplot(325)
+# plt.plot(dt[1:],np.nanmean(MR_IC,axis=1),'k-', label='MR, intersection')
+# plt.plot(dt[1:],np.nanmean(LR_IC,axis=1),'r-', label='LR, intersection')
+# plt.title('e) ', loc='left'); plt.ylabel(r"Mean persistence");
+
+# plt.plot(dt[1:],np.nanmean(MR_PC,axis=1),'k--', label='MR, co-location')
+# plt.plot(dt[1:],np.nanmean(LR_PC,axis=1),'r--', label='LR, co-location')
+# plt.legend(fontsize=8)
+
+# plt.subplot(326)
+# plt.plot(MR,np.nanmean(MR_IC,axis=0),'k-', label='MR, intersection')
+# plt.plot(LR,np.nanmean(LR_IC,axis=0),'r-', label='LR, intersection')
+
+# plt.plot(MR,np.nanmean(MR_PC,axis=0),'k--', label='MR, co-location')
+# plt.plot(LR,np.nanmean(LR_PC,axis=0),'r--', label='LR, co-location')
+# # plt.title('f) ', loc='left'); plt.ylabel(r"Mean autocorrelation");
+# plt.legend(fontsize=8)
+# plt.title('f) ', loc='left'); plt.ylabel(r"Mean persistence"); plt.xlabel("Distance downstream (km)"); 
+
+# # plt.show()
+# plt.savefig("summaries/wood_spacetime_persistence.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+
+
+
+# ########################################
+
+# ### per elevation bin
+# #### MR
+# wood0 = MRwood_geotiffs_ds.wood.sel(time=times[0])
         
-MR_MO1=[]; MR_MC1 = []; MR_IC1 = []; MR_PC1 = []; MR_PV1=[]
-MR_MO2=[]; MR_MC2 = []; MR_IC2 = []; MR_PC2 = []; MR_PV2=[]
-MR_MO3=[]; MR_MC3 = []; MR_IC3 = []; MR_PC3 = []; MR_PV3=[]
-MR_MO4=[]; MR_MC4 = []; MR_IC4 = []; MR_PC4 = []; MR_PV4=[]
-MR_MO5=[]; MR_MC5 = []; MR_IC5 = []; MR_PC5 = []; MR_PV5=[]
-MR_MO6=[]; MR_MC6 = []; MR_IC6 = []; MR_PC6 = []; MR_PV6=[]
-MR_MO7=[]; MR_MC7 = []; MR_IC7 = []; MR_PC7 = []; MR_PV7=[]
-MR_MO8=[]; MR_MC8 = []; MR_IC8 = []; MR_PC8 = []; MR_PV8=[]
-for time in times[1:]:
-    tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-     
-    for g in tqdm(MRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
-        dem_tmp = MR_detrend_dem[1].rio.clip([g], MR_detrend_dem[1].rio.crs).to_numpy()
+# MR_IC1 = []; MR_PC1 = []; MR_PV1=[]
+# MR_IC2 = []; MR_PC2 = []; MR_PV2=[]
+# MR_IC3 = []; MR_PC3 = []; MR_PV3=[]
+# MR_IC4 = []; MR_PC4 = []; MR_PV4=[]
+# MR_IC5 = []; MR_PC5 = []; MR_PV5=[]
+# MR_IC6 = []; MR_PC6 = []; MR_PV6=[]
+# MR_IC7 = []; MR_PC7 = []; MR_PV7=[]
+# MR_IC8 = []; MR_PC8 = []; MR_PV8=[]
+# MR_IC9 = []; MR_PC9 = []; MR_PV9=[]
+# MR_IC10 = []; MR_PC10 = []; MR_PV10=[]
+# MR_IC11 = []; MR_PC11 = []; MR_PV11=[]
+# MR_IC12 = []; MR_PC12 = []; MR_PV12=[]
+# MR_IC13 = []; MR_PC13 = []; MR_PV13=[]
+# MR_IC14 = []; MR_PC14 = []; MR_PV14=[]
 
-        bin1 = wood_c*((dem_tmp < 5))
-        bin2 = wood_c*((dem_tmp >= 5) & (dem_tmp < 6))
-        bin3 = wood_c*((dem_tmp >= 6) & (dem_tmp < 7))
-        bin4 = wood_c*((dem_tmp >= 7) & (dem_tmp < 8))
-        bin5 = wood_c*((dem_tmp >= 8) & (dem_tmp < 9))
-        bin6 = wood_c*((dem_tmp >= 9) & (dem_tmp < 10))
-        bin7 = wood_c*((dem_tmp >= 10) & (dem_tmp < 11))
-        bin8 = wood_c*((dem_tmp > 11))
+# for time in times[1:]:
+#     print(time)
+#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+#     dem_tmp = MR_dem_detrend_geotiffs_ds.dem.sel(time=time)
+#     dem_min = np.nanmin(dem_tmp)
+#     if dem_min<1:
+#         dem_tmp = dem_tmp-dem_min
 
-        bin1_0 = wood_c0*((dem_tmp < 5))
-        bin2_0 = wood_c0*((dem_tmp >= 5) & (dem_tmp < 6))
-        bin3_0 = wood_c0*((dem_tmp >= 6) & (dem_tmp < 7))
-        bin4_0 = wood_c0*((dem_tmp >= 7) & (dem_tmp < 8))
-        bin5_0 = wood_c0*((dem_tmp >= 8) & (dem_tmp < 9))
-        bin6_0 = wood_c0*((dem_tmp >= 9) & (dem_tmp < 10))
-        bin7_0 = wood_c0*((dem_tmp >= 10) & (dem_tmp < 11))
-        bin8_0 = wood_c0*((dem_tmp > 11))
+#     for g in MRbudget_reaches_redo:
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
+#         dem_c = dem_tmp.rio.clip([g], dem_tmp.rio.crs).to_numpy()
 
-        MR_IC1.append(intersection_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
-        MR_MO1.append(manders_overlap_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
-        MR_MC1.append(manders_coloc_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1)
-        MR_PC1.append(pcc)
-        MR_PV1.append(pval)
+#         bin1 = wood_c*((dem_c < 1))
+#         bin2 = wood_c*((dem_c >= 1) & (dem_c < 2))
+#         bin3 = wood_c*((dem_c >= 2) & (dem_c < 3))
+#         bin4 = wood_c*((dem_c >= 3) & (dem_c < 4))
+#         bin5 = wood_c*((dem_c >= 4) & (dem_c < 5))
+#         bin6 = wood_c*((dem_c >= 5) & (dem_c < 6))
+#         bin7 = wood_c*((dem_c >= 7) & (dem_c < 8))
+#         bin8 = wood_c*((dem_c >= 8) & (dem_c < 9))
+#         bin9 = wood_c*((dem_c >= 9) & (dem_c < 10))
+#         bin10 = wood_c*((dem_c >= 10) & (dem_c < 11))
+#         bin11 = wood_c*((dem_c >= 11) & (dem_c < 12))
+#         bin12 = wood_c*((dem_c >= 12) & (dem_c < 13))
+#         bin13 = wood_c*((dem_c >= 13) & (dem_c < 14))
+#         bin14 = wood_c*((dem_c > 14))
 
-        MR_IC2.append(intersection_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
-        MR_MO2.append(manders_overlap_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
-        MR_MC2.append(manders_coloc_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1)
-        MR_PC2.append(pcc)
-        MR_PV2.append(pval)
+#         bin1_0 = wood_c0*((dem_c < 1))
+#         bin2_0 = wood_c0*((dem_c >= 2) & (dem_c < 2))
+#         bin3_0 = wood_c0*((dem_c >= 3) & (dem_c < 3))
+#         bin4_0 = wood_c0*((dem_c >= 4) & (dem_c < 4))
+#         bin5_0 = wood_c0*((dem_c >= 5) & (dem_c < 5))
+#         bin6_0 = wood_c0*((dem_c >= 6) & (dem_c < 6))
+#         bin7_0 = wood_c0*((dem_c >= 7) & (dem_c < 7))
+#         bin8_0 = wood_c0*((dem_c >= 8) & (dem_c < 9))
+#         bin9_0 = wood_c0*((dem_c >= 9) & (dem_c < 10))
+#         bin10_0 = wood_c0*((dem_c >= 10) & (dem_c < 11))
+#         bin11_0 = wood_c0*((dem_c >= 11) & (dem_c < 12))
+#         bin12_0 = wood_c0*((dem_c >= 12) & (dem_c < 13))
+#         bin13_0 = wood_c0*((dem_c >= 13) & (dem_c < 14))
+#         bin14_0 = wood_c0*((dem_c > 14))
 
-        MR_IC3.append(intersection_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
-        MR_MO3.append(manders_overlap_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
-        MR_MC3.append(manders_coloc_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1)
-        MR_PC3.append(pcc)
-        MR_PV3.append(pval)
+#         MR_IC1.append(intersection_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1)
+#         MR_PC1.append(pcc)
+#         MR_PV1.append(pval)
 
-        MR_IC4.append(intersection_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
-        MR_MO4.append(manders_overlap_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
-        MR_MC4.append(manders_coloc_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1)
-        MR_PC4.append(pcc)
-        MR_PV4.append(pval)
+#         MR_IC2.append(intersection_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1)
+#         MR_PC2.append(pcc)
+#         MR_PV2.append(pval)
 
-        MR_IC5.append(intersection_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
-        MR_MO5.append(manders_overlap_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
-        MR_MC5.append(manders_coloc_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1)
-        MR_PC5.append(pcc)
-        MR_PV5.append(pval)
+#         MR_IC3.append(intersection_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1)
+#         MR_PC3.append(pcc)
+#         MR_PV3.append(pval)
 
-        MR_IC6.append(intersection_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
-        MR_MO6.append(manders_overlap_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
-        MR_MC6.append(manders_coloc_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1)
-        MR_PC6.append(pcc)
-        MR_PV6.append(pval)
+#         MR_IC4.append(intersection_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1)
+#         MR_PC4.append(pcc)
+#         MR_PV4.append(pval)
 
-        MR_IC7.append(intersection_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
-        MR_MO7.append(manders_overlap_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
-        MR_MC7.append(manders_coloc_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1)
-        MR_PC7.append(pcc)
-        MR_PV7.append(pval)
+#         MR_IC5.append(intersection_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1)
+#         MR_PC5.append(pcc)
+#         MR_PV5.append(pval)
 
-        MR_IC8.append(intersection_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
-        MR_MO8.append(manders_overlap_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
-        MR_MC8.append(manders_coloc_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1)
-        MR_PC8.append(pcc)
-        MR_PV8.append(pval)
+#         MR_IC6.append(intersection_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1)
+#         MR_PC6.append(pcc)
+#         MR_PV6.append(pval)
+
+#         MR_IC7.append(intersection_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1)
+#         MR_PC7.append(pcc)
+#         MR_PV7.append(pval)
+
+#         MR_IC8.append(intersection_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
+#         # MR_MO8.append(manders_overlap_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
+#         # MR_MC8.append(manders_coloc_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1)
+#         MR_PC8.append(pcc)
+#         MR_PV8.append(pval)
+
+#         MR_IC9.append(intersection_coeff(bin9_0.to_numpy()==1, bin9.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin9_0.to_numpy()==1, bin9.to_numpy()==1)
+#         MR_PC9.append(pcc)
+#         MR_PV9.append(pval)
+
+#         MR_IC10.append(intersection_coeff(bin10_0.to_numpy()==1, bin10.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin10_0.to_numpy()==1, bin10.to_numpy()==1)
+#         MR_PC10.append(pcc)
+#         MR_PV10.append(pval)
+
+#         MR_IC11.append(intersection_coeff(bin11_0.to_numpy()==1, bin11.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin11_0.to_numpy()==1, bin11.to_numpy()==1)
+#         MR_PC11.append(pcc)
+#         MR_PV11.append(pval)        
+
+#         MR_IC12.append(intersection_coeff(bin12_0.to_numpy()==1, bin12.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin12_0.to_numpy()==1, bin12.to_numpy()==1)
+#         MR_PC12.append(pcc)
+#         MR_PV12.append(pval)
+
+#         MR_IC13.append(intersection_coeff(bin13_0.to_numpy()==1, bin13.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin13_0.to_numpy()==1, bin13.to_numpy()==1)
+#         MR_PC13.append(pcc)
+#         MR_PV13.append(pval)
+
+#         MR_IC14.append(intersection_coeff(bin14_0.to_numpy()==1, bin14.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin14_0.to_numpy()==1, bin14.to_numpy()==1)
+#         MR_PC14.append(pcc)
+#         MR_PV14.append(pval)
 
 
-np.savez('summaries/MR_association_metrics_heightbins.npz', MR_MO1 = MR_MO1, MR_IC1 = MR_IC1, MR_PC1 = MR_PC1, MR_MO2 = MR_MO2, MR_IC2=MR_IC2, MR_PC2=MR_PC2, MR_PV2=MR_PV2, MR_PV1=MR_PV1, MR_MC1=MR_MC1, MR_MC2=MR_MC2, MR_MO3=MR_MO3, MR_MC3=MR_MC3, MR_IC3=MR_IC3, MR_PC3=MR_PC3, MR_PV3=MR_PV3, MR_MO4=MR_MO4, MR_MC4=MR_MC4, MR_IC4=MR_IC4, MR_PC4=MR_PC4, MR_PV4=MR_PV4, MR_MO5=MR_MO5,MR_MC5=MR_MC5, MR_IC5=MR_IC5, MR_PC5=MR_PC5, MR_PV5=MR_PV5, MR_MO6=MR_MO6, MR_MC6=MR_MC6, MR_IC6=MR_IC6, MR_PC6=MR_PC6, MR_PV6=MR_PV6, MR_MO7=MR_MO7, MR_MC7=MR_MC7, MR_IC7=MR_IC7, MR_PC7=MR_PC7, MR_PV7=MR_PV7, MR_MO8=MR_MO8, MR_MC8=MR_MC8, MR_IC8=MR_IC8, MR_PC8=MR_PC8, MR_PV8=MR_PV8)
+# np.savez('summaries/MR_association_metrics_heightbins.npz', MR_IC1 = MR_IC1, MR_PC1 = MR_PC1, MR_PV1=MR_PV1, MR_IC2=MR_IC2, MR_PC2=MR_PC2, MR_PV2=MR_PV2, MR_IC3=MR_IC3, MR_PC3=MR_PC3, MR_PV3=MR_PV3, MR_IC4=MR_IC4, MR_PC4=MR_PC4, MR_PV4=MR_PV4, MR_IC5=MR_IC5, MR_PC5=MR_PC5, MR_PV5=MR_PV5, MR_IC6=MR_IC6, MR_PC6=MR_PC6, MR_PV6=MR_PV6, MR_IC7=MR_IC7, MR_PC7=MR_PC7, MR_PV7=MR_PV7, MR_IC8=MR_IC8, MR_PC8=MR_PC8, MR_PV8=MR_PV8, MR_IC9=MR_IC9, MR_PC9=MR_PC9, MR_PV9=MR_PV9,MR_IC10=MR_IC10, MR_PC10=MR_PC10, MR_PV10=MR_PV10,MR_IC11=MR_IC11, MR_PC11=MR_PC11, MR_PV11=MR_PV11, MR_IC12=MR_IC12, MR_PC12=MR_PC12, MR_PV12=MR_PV12,MR_IC13=MR_IC13, MR_PC13=MR_PC13, MR_PV13=MR_PV13,MR_IC14=MR_IC14, MR_PC14=MR_PC14, MR_PV14=MR_PV14)
+
 
 
 with np.load('summaries/MR_association_metrics_heightbins.npz', allow_pickle=True) as f:
-    MR_MO1 = f['MR_MO1']; MR_IC1 = f['MR_IC1']; MR_PC1 = f['MR_PC1']
-    MR_MO2 = f['MR_MO2']; MR_IC2= f['MR_IC2']; MR_PC2= f['MR_PC2']
-    MR_PV2= f['MR_PV2']; MR_PV1= f['MR_PV1']; MR_MC1= f['MR_MC1']
-    MR_MC2= f['MR_MC2']; MR_MO3= f['MR_MO3']; MR_MC3= f['MR_MC3']
+    MR_IC1= f['MR_IC1']; MR_PC1= f['MR_PC1']; MR_PV1= f['MR_PV1']; 
+    MR_IC2= f['MR_IC2']; MR_PC2= f['MR_PC2']; MR_PV2= f['MR_PV2']; 
     MR_IC3= f['MR_IC3']; MR_PC3= f['MR_PC3']; MR_PV3= f['MR_PV3']
-    MR_MO4= f['MR_MO4']; MR_MC4= f['MR_MC4']; MR_IC4= f['MR_IC4']
-    MR_PC4= f['MR_PC4']; MR_PV4= f['MR_PV4']; MR_MO5= f['MR_MO5']
-    MR_MC5= f['MR_MC5']; MR_IC5= f['MR_IC5']; MR_PC5= f['MR_PC5']
-    MR_PV5= f['MR_PV5']; MR_MO6= f['MR_MO6']; MR_MC6= f['MR_MC6']
-    MR_IC6= f['MR_IC6']; MR_PC6= f['MR_PC6']; MR_PV6= f['MR_PV6']
-    MR_MO7= f['MR_MO7']; MR_MC7= f['MR_MC7']; MR_IC7= f['MR_IC7']
-    MR_PC7= f['MR_PC7']; MR_PV7= f['MR_PV7']; MR_MO8= f['MR_MO8']
-    MR_MC8= f['MR_MC8']; MR_IC8= f['MR_IC8']; MR_PC8= f['MR_PC8']
-    MR_PV8= f['MR_PV8']
+    MR_IC4= f['MR_IC4']; MR_PC4= f['MR_PC4']; MR_PV4= f['MR_PV4']; 
+    MR_IC5= f['MR_IC5']; MR_PC5= f['MR_PC5']; MR_PV5= f['MR_PV5']; 
+    MR_IC6= f['MR_IC6']; MR_PC6= f['MR_PC6']; MR_PV6= f['MR_PV6']; 
+    MR_IC7= f['MR_IC7']; MR_PC7= f['MR_PC7']; MR_PV7= f['MR_PV7']; 
+    MR_IC8= f['MR_IC8']; MR_PC8= f['MR_PC8']; MR_PV8= f['MR_PV8']
+    MR_IC9= f['MR_IC9']; MR_PC9= f['MR_PC9']; MR_PV9= f['MR_PV9']
+    MR_IC10= f['MR_IC10']; MR_PC10= f['MR_PC10']; MR_PV10= f['MR_PV10']
+    MR_IC11= f['MR_IC11']; MR_PC11= f['MR_PC11']; MR_PV11= f['MR_PV11']
+    MR_IC12= f['MR_IC12']; MR_PC12= f['MR_PC12']; MR_PV12= f['MR_PV12']
+    MR_IC13= f['MR_IC13']; MR_PC13= f['MR_PC13']; MR_PV13= f['MR_PV13']
+    MR_IC14= f['MR_IC14']; MR_PC14= f['MR_PC14']; MR_PV14= f['MR_PV14']
 
 
 MR_IC1 = np.array(MR_IC1).reshape(len(times)-1,len(MRbudget_reaches_redo))
@@ -327,132 +480,200 @@ MR_IC5 = np.array(MR_IC5).reshape(len(times)-1,len(MRbudget_reaches_redo))
 MR_IC6 = np.array(MR_IC6).reshape(len(times)-1,len(MRbudget_reaches_redo))
 MR_IC7 = np.array(MR_IC7).reshape(len(times)-1,len(MRbudget_reaches_redo))
 MR_IC8 = np.array(MR_IC8).reshape(len(times)-1,len(MRbudget_reaches_redo))
-
-MR_MC1 = np.array(MR_MC1).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MC2 = np.array(MR_MC2).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MC3 = np.array(MR_MC3).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MC4 = np.array(MR_MC4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
-MR_MC5 = np.array(MR_MC5).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MC6 = np.array(MR_MC6).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MC7 = np.array(MR_MC7).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_MC8 = np.array(MR_MC8).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_IC9 = np.array(MR_IC9).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_IC10 = np.array(MR_IC10).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_IC11 = np.array(MR_IC11).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_IC12 = np.array(MR_IC12).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_IC13 = np.array(MR_IC13).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_IC14 = np.array(MR_IC14).reshape(len(times)-1,len(MRbudget_reaches_redo))
 
 
+MR_PC1 = np.array(MR_PC1).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC2 = np.array(MR_PC2).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC3 = np.array(MR_PC3).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC4 = np.array(MR_PC4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
+MR_PC5 = np.array(MR_PC5).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC6 = np.array(MR_PC6).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC7 = np.array(MR_PC7).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC8 = np.array(MR_PC8).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC9 = np.array(MR_PC9).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC10 = np.array(MR_PC10).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC11 = np.array(MR_PC11).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC12 = np.array(MR_PC12).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC13 = np.array(MR_PC13).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC14 = np.array(MR_PC14).reshape(len(times)-1,len(MRbudget_reaches_redo))
 
-######################################################################################
-#### LR
-wood0 = LRwood_geotiffs_ds.wood.sel(time=times[0])
+
+MR_PV1 = np.array(MR_PV1).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV2 = np.array(MR_PV2).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV3 = np.array(MR_PV3).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV4 = np.array(MR_PV4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
+MR_PV5 = np.array(MR_PV5).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV6 = np.array(MR_PV6).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV7 = np.array(MR_PV7).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV8 = np.array(MR_PV8).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV9 = np.array(MR_PV9).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV10 = np.array(MR_PV10).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV11 = np.array(MR_PV11).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV12 = np.array(MR_PV12).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV13 = np.array(MR_PV13).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV14 = np.array(MR_PV14).reshape(len(times)-1,len(MRbudget_reaches_redo))
+
+
+
+# ######################################################################################
+# #### LR
+# wood0 = LRwood_geotiffs_ds.wood.sel(time=times[0])
         
-LR_MO1=[]; LR_MC1 = []; LR_IC1 = []; LR_PC1 = []; LR_PV1=[]
-LR_MO2=[]; LR_MC2 = []; LR_IC2 = []; LR_PC2 = []; LR_PV2=[]
-LR_MO3=[]; LR_MC3 = []; LR_IC3 = []; LR_PC3 = []; LR_PV3=[]
-LR_MO4=[]; LR_MC4 = []; LR_IC4 = []; LR_PC4 = []; LR_PV4=[]
-LR_MO5=[]; LR_MC5 = []; LR_IC5 = []; LR_PC5 = []; LR_PV5=[]
-LR_MO6=[]; LR_MC6 = []; LR_IC6 = []; LR_PC6 = []; LR_PV6=[]
-LR_MO7=[]; LR_MC7 = []; LR_IC7 = []; LR_PC7 = []; LR_PV7=[]
-LR_MO8=[]; LR_MC8 = []; LR_IC8 = []; LR_PC8 = []; LR_PV8=[]
-for time in times[1:]:
-    tmp = LRwood_geotiffs_ds.wood.sel(time=time)
-     
-    for g in tqdm(LRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
-        dem_tmp = LR_detrend_dem[1].rio.clip([g], LR_detrend_dem[1].rio.crs).to_numpy()
+# LR_IC1 = []; LR_PC1 = []; LR_PV1=[]
+# LR_IC2 = []; LR_PC2 = []; LR_PV2=[]
+# LR_IC3 = []; LR_PC3 = []; LR_PV3=[]
+# LR_IC4 = []; LR_PC4 = []; LR_PV4=[]
+# LR_IC5 = []; LR_PC5 = []; LR_PV5=[]
+# LR_IC6 = []; LR_PC6 = []; LR_PV6=[]
+# LR_IC7 = []; LR_PC7 = []; LR_PV7=[]
+# LR_IC8 = []; LR_PC8 = []; LR_PV8=[]
+# LR_IC9 = []; LR_PC9 = []; LR_PV9=[]
+# LR_IC10 = []; LR_PC10 = []; LR_PV10=[]
+# LR_IC11 = []; LR_PC11 = []; LR_PV11=[]
+# LR_IC12 = []; LR_PC12 = []; LR_PV12=[]
+# LR_IC13 = []; LR_PC13 = []; LR_PV13=[]
+# LR_IC14 = []; LR_PC14 = []; LR_PV14=[]
 
-        bin1 = wood_c*((dem_tmp < 5))
-        bin2 = wood_c*((dem_tmp >= 5) & (dem_tmp < 6))
-        bin3 = wood_c*((dem_tmp >= 6) & (dem_tmp < 7))
-        bin4 = wood_c*((dem_tmp >= 7) & (dem_tmp < 8))
-        bin5 = wood_c*((dem_tmp >= 8) & (dem_tmp < 9))
-        bin6 = wood_c*((dem_tmp >= 9) & (dem_tmp < 10))
-        bin7 = wood_c*((dem_tmp >= 10) & (dem_tmp < 11))
-        bin8 = wood_c*((dem_tmp > 11))
+# for time in times[1:]:
+#     print(time)
+#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+#     dem_tmp = LR_dem_detrend_geotiffs_ds.dem.sel(time=time)
+#     dem_min = np.nanmin(dem_tmp)
+#     if dem_min<1:
+#         dem_tmp = dem_tmp-dem_min
 
-        bin1_0 = wood_c0*((dem_tmp < 5))
-        bin2_0 = wood_c0*((dem_tmp >= 5) & (dem_tmp < 6))
-        bin3_0 = wood_c0*((dem_tmp >= 6) & (dem_tmp < 7))
-        bin4_0 = wood_c0*((dem_tmp >= 7) & (dem_tmp < 8))
-        bin5_0 = wood_c0*((dem_tmp >= 8) & (dem_tmp < 9))
-        bin6_0 = wood_c0*((dem_tmp >= 9) & (dem_tmp < 10))
-        bin7_0 = wood_c0*((dem_tmp >= 10) & (dem_tmp < 11))
-        bin8_0 = wood_c0*((dem_tmp > 11))
+#     for g in LRbudget_reaches_redo:
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
+#         dem_c = dem_tmp.rio.clip([g], dem_tmp.rio.crs).to_numpy()
 
-        LR_IC1.append(intersection_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
-        LR_MO1.append(manders_overlap_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
-        LR_MC1.append(manders_coloc_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1)
-        LR_PC1.append(pcc)
-        LR_PV1.append(pval)
+#         bin1 = wood_c*((dem_c < 1))
+#         bin2 = wood_c*((dem_c >= 1) & (dem_c < 2))
+#         bin3 = wood_c*((dem_c >= 2) & (dem_c < 3))
+#         bin4 = wood_c*((dem_c >= 3) & (dem_c < 4))
+#         bin5 = wood_c*((dem_c >= 4) & (dem_c < 5))
+#         bin6 = wood_c*((dem_c >= 5) & (dem_c < 6))
+#         bin7 = wood_c*((dem_c >= 7) & (dem_c < 8))
+#         bin8 = wood_c*((dem_c >= 8) & (dem_c < 9))
+#         bin9 = wood_c*((dem_c >= 9) & (dem_c < 10))
+#         bin10 = wood_c*((dem_c >= 10) & (dem_c < 11))
+#         bin11 = wood_c*((dem_c >= 11) & (dem_c < 12))
+#         bin12 = wood_c*((dem_c >= 12) & (dem_c < 13))
+#         bin13 = wood_c*((dem_c >= 13) & (dem_c < 14))
+#         bin14 = wood_c*((dem_c > 14))
 
-        LR_IC2.append(intersection_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
-        LR_MO2.append(manders_overlap_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
-        LR_MC2.append(manders_coloc_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1)
-        LR_PC2.append(pcc)
-        LR_PV2.append(pval)
+#         bin1_0 = wood_c0*((dem_c < 1))
+#         bin2_0 = wood_c0*((dem_c >= 2) & (dem_c < 2))
+#         bin3_0 = wood_c0*((dem_c >= 3) & (dem_c < 3))
+#         bin4_0 = wood_c0*((dem_c >= 4) & (dem_c < 4))
+#         bin5_0 = wood_c0*((dem_c >= 5) & (dem_c < 5))
+#         bin6_0 = wood_c0*((dem_c >= 6) & (dem_c < 6))
+#         bin7_0 = wood_c0*((dem_c >= 7) & (dem_c < 7))
+#         bin8_0 = wood_c0*((dem_c >= 8) & (dem_c < 9))
+#         bin9_0 = wood_c0*((dem_c >= 9) & (dem_c < 10))
+#         bin10_0 = wood_c0*((dem_c >= 10) & (dem_c < 11))
+#         bin11_0 = wood_c0*((dem_c >= 11) & (dem_c < 12))
+#         bin12_0 = wood_c0*((dem_c >= 12) & (dem_c < 13))
+#         bin13_0 = wood_c0*((dem_c >= 13) & (dem_c < 14))
+#         bin14_0 = wood_c0*((dem_c > 14))
 
-        LR_IC3.append(intersection_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
-        LR_MO3.append(manders_overlap_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
-        LR_MC3.append(manders_coloc_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1)
-        LR_PC3.append(pcc)
-        LR_PV3.append(pval)
+#         LR_IC1.append(intersection_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin1_0.to_numpy()==1, bin1.to_numpy()==1)
+#         LR_PC1.append(pcc)
+#         LR_PV1.append(pval)
 
-        LR_IC4.append(intersection_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
-        LR_MO4.append(manders_overlap_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
-        LR_MC4.append(manders_coloc_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1)
-        LR_PC4.append(pcc)
-        LR_PV4.append(pval)
+#         LR_IC2.append(intersection_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin2_0.to_numpy()==1, bin2.to_numpy()==1)
+#         LR_PC2.append(pcc)
+#         LR_PV2.append(pval)
 
-        LR_IC5.append(intersection_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
-        LR_MO5.append(manders_overlap_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
-        LR_MC5.append(manders_coloc_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1)
-        LR_PC5.append(pcc)
-        LR_PV5.append(pval)
+#         LR_IC3.append(intersection_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin3_0.to_numpy()==1, bin3.to_numpy()==1)
+#         LR_PC3.append(pcc)
+#         LR_PV3.append(pval)
 
-        LR_IC6.append(intersection_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
-        LR_MO6.append(manders_overlap_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
-        LR_MC6.append(manders_coloc_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1)
-        LR_PC6.append(pcc)
-        LR_PV6.append(pval)
+#         LR_IC4.append(intersection_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin4_0.to_numpy()==1, bin4.to_numpy()==1)
+#         LR_PC4.append(pcc)
+#         LR_PV4.append(pval)
 
-        LR_IC7.append(intersection_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
-        LR_MO7.append(manders_overlap_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
-        LR_MC7.append(manders_coloc_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1)
-        LR_PC7.append(pcc)
-        LR_PV7.append(pval)
+#         LR_IC5.append(intersection_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin5_0.to_numpy()==1, bin5.to_numpy()==1)
+#         LR_PC5.append(pcc)
+#         LR_PV5.append(pval)
 
-        LR_IC8.append(intersection_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
-        LR_MO8.append(manders_overlap_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
-        LR_MC8.append(manders_coloc_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
-        pcc, pval = pearson_corr_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1)
-        LR_PC8.append(pcc)
-        LR_PV8.append(pval)
+#         LR_IC6.append(intersection_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin6_0.to_numpy()==1, bin6.to_numpy()==1)
+#         LR_PC6.append(pcc)
+#         LR_PV6.append(pval)
+
+#         LR_IC7.append(intersection_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin7_0.to_numpy()==1, bin7.to_numpy()==1)
+#         LR_PC7.append(pcc)
+#         LR_PV7.append(pval)
+
+#         LR_IC8.append(intersection_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
+#         # LR_MO8.append(manders_overlap_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
+#         # LR_MC8.append(manders_coloc_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin8_0.to_numpy()==1, bin8.to_numpy()==1)
+#         LR_PC8.append(pcc)
+#         LR_PV8.append(pval)
+
+#         LR_IC9.append(intersection_coeff(bin9_0.to_numpy()==1, bin9.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin9_0.to_numpy()==1, bin9.to_numpy()==1)
+#         LR_PC9.append(pcc)
+#         LR_PV9.append(pval)
+
+#         LR_IC10.append(intersection_coeff(bin10_0.to_numpy()==1, bin10.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin10_0.to_numpy()==1, bin10.to_numpy()==1)
+#         LR_PC10.append(pcc)
+#         LR_PV10.append(pval)
+
+#         LR_IC11.append(intersection_coeff(bin11_0.to_numpy()==1, bin11.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin11_0.to_numpy()==1, bin11.to_numpy()==1)
+#         LR_PC11.append(pcc)
+#         LR_PV11.append(pval)        
+
+#         LR_IC12.append(intersection_coeff(bin12_0.to_numpy()==1, bin12.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin12_0.to_numpy()==1, bin12.to_numpy()==1)
+#         LR_PC12.append(pcc)
+#         LR_PV12.append(pval)
+
+#         LR_IC13.append(intersection_coeff(bin13_0.to_numpy()==1, bin13.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin13_0.to_numpy()==1, bin13.to_numpy()==1)
+#         LR_PC13.append(pcc)
+#         LR_PV13.append(pval)
+
+#         LR_IC14.append(intersection_coeff(bin14_0.to_numpy()==1, bin14.to_numpy()==1))
+#         pcc, pval = pearson_corr_coeff(bin14_0.to_numpy()==1, bin14.to_numpy()==1)
+#         LR_PC14.append(pcc)
+#         LR_PV14.append(pval)
 
 
-np.savez('summaries/LR_association_metrics_heightbins.npz', LR_MO1 = LR_MO1, LR_IC1 = LR_IC1, LR_PC1 = LR_PC1, LR_MO2 = LR_MO2, LR_IC2=LR_IC2, LR_PC2=LR_PC2, LR_PV2=LR_PV2, LR_PV1=LR_PV1, LR_MC1=LR_MC1, LR_MC2=LR_MC2, LR_MO3=LR_MO3, LR_MC3=LR_MC3, LR_IC3=LR_IC3, LR_PC3=LR_PC3, LR_PV3=LR_PV3, LR_MO4=LR_MO4, LR_MC4=LR_MC4, LR_IC4=LR_IC4, LR_PC4=LR_PC4, LR_PV4=LR_PV4, LR_MO5=LR_MO5,LR_MC5=LR_MC5, LR_IC5=LR_IC5, LR_PC5=LR_PC5, LR_PV5=LR_PV5, LR_MO6=LR_MO6, LR_MC6=LR_MC6, LR_IC6=LR_IC6, LR_PC6=LR_PC6, LR_PV6=LR_PV6, LR_MO7=LR_MO7, LR_MC7=LR_MC7, LR_IC7=LR_IC7, LR_PC7=LR_PC7, LR_PV7=LR_PV7, LR_MO8=LR_MO8, LR_MC8=LR_MC8, LR_IC8=LR_IC8, LR_PC8=LR_PC8, LR_PV8=LR_PV8)
-
+# np.savez('summaries/LR_association_metrics_heightbins.npz', LR_IC1 = LR_IC1, LR_PC1 = LR_PC1, LR_PV1=LR_PV1, LR_IC2=LR_IC2, LR_PC2=LR_PC2, LR_PV2=LR_PV2, LR_IC3=LR_IC3, LR_PC3=LR_PC3, LR_PV3=LR_PV3, LR_IC4=LR_IC4, LR_PC4=LR_PC4, LR_PV4=LR_PV4, LR_IC5=LR_IC5, LR_PC5=LR_PC5, LR_PV5=LR_PV5, LR_IC6=LR_IC6, LR_PC6=LR_PC6, LR_PV6=LR_PV6, LR_IC7=LR_IC7, LR_PC7=LR_PC7, LR_PV7=LR_PV7, LR_IC8=LR_IC8, LR_PC8=LR_PC8, LR_PV8=LR_PV8, LR_IC9=LR_IC9, LR_PC9=LR_PC9, LR_PV9=LR_PV9,LR_IC10=LR_IC10, LR_PC10=LR_PC10, LR_PV10=LR_PV10,LR_IC11=LR_IC11, LR_PC11=LR_PC11, LR_PV11=LR_PV11, LR_IC12=LR_IC12, LR_PC12=LR_PC12, LR_PV12=LR_PV12,LR_IC13=LR_IC13, LR_PC13=LR_PC13, LR_PV13=LR_PV13,LR_IC14=LR_IC14, LR_PC14=LR_PC14, LR_PV14=LR_PV14)
 
 
 with np.load('summaries/LR_association_metrics_heightbins.npz', allow_pickle=True) as f:
-    LR_MO1 = f['LR_MO1']; LR_IC1 = f['LR_IC1']; LR_PC1 = f['LR_PC1']
-    LR_MO2 = f['LR_MO2']; LR_IC2= f['LR_IC2']; LR_PC2= f['LR_PC2']
-    LR_PV2= f['LR_PV2']; LR_PV1= f['LR_PV1']; LR_MC1= f['LR_MC1']
-    LR_MC2= f['LR_MC2']; LR_MO3= f['LR_MO3']; LR_MC3= f['LR_MC3']
+    LR_IC1= f['LR_IC1']; LR_PC1= f['LR_PC1']; LR_PV1= f['LR_PV1']; 
+    LR_IC2= f['LR_IC2']; LR_PC2= f['LR_PC2']; LR_PV2= f['LR_PV2']; 
     LR_IC3= f['LR_IC3']; LR_PC3= f['LR_PC3']; LR_PV3= f['LR_PV3']
-    LR_MO4= f['LR_MO4']; LR_MC4= f['LR_MC4']; LR_IC4= f['LR_IC4']
-    LR_PC4= f['LR_PC4']; LR_PV4= f['LR_PV4']; LR_MO5= f['LR_MO5']
-    LR_MC5= f['LR_MC5']; LR_IC5= f['LR_IC5']; LR_PC5= f['LR_PC5']
-    LR_PV5= f['LR_PV5']; LR_MO6= f['LR_MO6']; LR_MC6= f['LR_MC6']
-    LR_IC6= f['LR_IC6']; LR_PC6= f['LR_PC6']; LR_PV6= f['LR_PV6']
-    LR_MO7= f['LR_MO7']; LR_MC7= f['LR_MC7']; LR_IC7= f['LR_IC7']
-    LR_PC7= f['LR_PC7']; LR_PV7= f['LR_PV7']; LR_MO8= f['LR_MO8']
-    LR_MC8= f['LR_MC8']; LR_IC8= f['LR_IC8']; LR_PC8= f['LR_PC8']
-    LR_PV8= f['LR_PV8']
+    LR_IC4= f['LR_IC4']; LR_PC4= f['LR_PC4']; LR_PV4= f['LR_PV4']; 
+    LR_IC5= f['LR_IC5']; LR_PC5= f['LR_PC5']; LR_PV5= f['LR_PV5']; 
+    LR_IC6= f['LR_IC6']; LR_PC6= f['LR_PC6']; LR_PV6= f['LR_PV6']; 
+    LR_IC7= f['LR_IC7']; LR_PC7= f['LR_PC7']; LR_PV7= f['LR_PV7']; 
+    LR_IC8= f['LR_IC8']; LR_PC8= f['LR_PC8']; LR_PV8= f['LR_PV8']
+    LR_IC9= f['LR_IC9']; LR_PC9= f['LR_PC9']; LR_PV9= f['LR_PV9']
+    LR_IC10= f['LR_IC10']; LR_PC10= f['LR_PC10']; LR_PV10= f['LR_PV10']
+    LR_IC11= f['LR_IC11']; LR_PC11= f['LR_PC11']; LR_PV11= f['LR_PV11']
+    LR_IC12= f['LR_IC12']; LR_PC12= f['LR_PC12']; LR_PV12= f['LR_PV12']
+    LR_IC13= f['LR_IC13']; LR_PC13= f['LR_PC13']; LR_PV13= f['LR_PV13']
+    LR_IC14= f['LR_IC14']; LR_PC14= f['LR_PC14']; LR_PV14= f['LR_PV14']
 
 
 LR_IC1 = np.array(LR_IC1).reshape(len(times)-1,len(LRbudget_reaches_redo))
@@ -463,295 +684,275 @@ LR_IC5 = np.array(LR_IC5).reshape(len(times)-1,len(LRbudget_reaches_redo))
 LR_IC6 = np.array(LR_IC6).reshape(len(times)-1,len(LRbudget_reaches_redo))
 LR_IC7 = np.array(LR_IC7).reshape(len(times)-1,len(LRbudget_reaches_redo))
 LR_IC8 = np.array(LR_IC8).reshape(len(times)-1,len(LRbudget_reaches_redo))
-
-LR_MC1 = np.array(LR_MC1).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MC2 = np.array(LR_MC2).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MC3 = np.array(LR_MC3).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MC4 = np.array(LR_MC4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
-LR_MC5 = np.array(LR_MC5).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MC6 = np.array(LR_MC6).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MC7 = np.array(LR_MC7).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_MC8 = np.array(LR_MC8).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_IC9 = np.array(LR_IC9).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_IC10 = np.array(LR_IC10).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_IC11 = np.array(LR_IC11).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_IC12 = np.array(LR_IC12).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_IC13 = np.array(LR_IC13).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_IC14 = np.array(LR_IC14).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
 
+LR_PC1 = np.array(LR_PC1).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC2 = np.array(LR_PC2).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC3 = np.array(LR_PC3).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC4 = np.array(LR_PC4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
+LR_PC5 = np.array(LR_PC5).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC6 = np.array(LR_PC6).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC7 = np.array(LR_PC7).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC8 = np.array(LR_PC8).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC9 = np.array(LR_PC9).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC10 = np.array(LR_PC10).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC11 = np.array(LR_PC11).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC12 = np.array(LR_PC12).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC13 = np.array(LR_PC13).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC14 = np.array(LR_PC14).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
-########################################
-plt.figure(figsize=(16,16))
-plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
-plt.subplot(321)
-plt.imshow(np.flipud(MR_IC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient")
-plt.gca().invert_yaxis()
-plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(332)
-# plt.imshow(np.flipud(MR_PC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
-# plt.gca().invert_yaxis()
-# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(322)
-plt.imshow(np.flipud(MR_MC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Manders co-location coefficient")
-plt.gca().invert_yaxis()
-plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(323)
-plt.imshow(np.flipud(LR_IC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient")
-plt.gca().invert_yaxis()
-plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(335)
-# plt.imshow(np.flipud(LR_PC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
-# plt.gca().invert_yaxis()
-# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(324)
-plt.imshow(np.flipud(LR_MC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Manders co-location coefficient")
-plt.gca().invert_yaxis()
-plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(337)
-# plt.plot(MR, np.nanmean(MR_PC,axis=0),'k-', label='MR')
-# plt.plot(LR, np.nanmean(LR_PC,axis=0),'r--', label='LR')
-# plt.ylabel(r"Mean autocorrelation"); plt.xlabel("Distance downstream (km)"); 
-# plt.legend()
-# plt.title('g) ', loc='left')
-
-plt.subplot(325)
-plt.plot(dt[1:],np.nanmean(MR_IC,axis=1),'k-', label='MR, intersection')
-plt.plot(dt[1:],np.nanmean(LR_IC,axis=1),'r-', label='LR, intersection')
-plt.title('e) ', loc='left'); plt.ylabel(r"Mean persistence");
-
-plt.plot(dt[1:],np.nanmean(MR_PC,axis=1),'k--', label='MR, co-location')
-plt.plot(dt[1:],np.nanmean(LR_PC,axis=1),'r--', label='LR, co-location')
-plt.legend(fontsize=8)
-
-plt.subplot(326)
-plt.plot(MR,np.nanmean(MR_IC,axis=0),'k-', label='MR, intersection')
-plt.plot(LR,np.nanmean(LR_IC,axis=0),'r-', label='LR, intersection')
-
-plt.plot(MR,np.nanmean(MR_PC,axis=0),'k--', label='MR, co-location')
-plt.plot(LR,np.nanmean(LR_PC,axis=0),'r--', label='LR, co-location')
-# plt.title('f) ', loc='left'); plt.ylabel(r"Mean autocorrelation");
-plt.legend(fontsize=8)
-plt.title('f) ', loc='left'); plt.ylabel(r"Mean persistence"); plt.xlabel("Distance downstream (km)"); 
-
-# plt.show()
-plt.savefig("summaries/wood_spacetime_persistence.png", dpi=300, bbox_inches="tight")
-plt.close()
+LR_PV1 = np.array(LR_PV1).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV2 = np.array(LR_PV2).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV3 = np.array(LR_PV3).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV4 = np.array(LR_PV4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
+LR_PV5 = np.array(LR_PV5).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV6 = np.array(LR_PV6).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV7 = np.array(LR_PV7).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV8 = np.array(LR_PV8).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV9 = np.array(LR_PV9).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV10 = np.array(LR_PV10).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV11 = np.array(LR_PV11).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV12 = np.array(LR_PV12).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV13 = np.array(LR_PV13).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV14 = np.array(LR_PV14).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
 
 
+# imMR = np.vstack((np.mean(MR_IC3,axis=1),np.mean(MR_IC4,axis=1),np.mean(MR_IC5,axis=1),np.mean(MR_IC6,axis=1),np.mean(MR_IC7,axis=1),np.mean(MR_IC8,axis=1),np.mean(MR_IC9,axis=1),np.mean(MR_IC10,axis=1),np.mean(MR_IC11,axis=1),np.mean(MR_IC12,axis=1),np.mean(MR_IC13,axis=1),np.mean(MR_IC14,axis=1)))
 
+# imLR = np.vstack((np.mean(LR_IC3,axis=1),np.mean(LR_IC4,axis=1),np.mean(LR_IC5,axis=1),np.mean(LR_IC6,axis=1),np.mean(LR_IC7,axis=1),np.mean(LR_IC8,axis=1),np.mean(LR_IC9,axis=1),np.mean(LR_IC10,axis=1),np.mean(LR_IC11,axis=1),np.mean(LR_IC12,axis=1),np.mean(LR_IC13,axis=1),np.mean(LR_IC14,axis=1)))
+
+
+# imMR = np.vstack((np.mean(MR_PC3,axis=1),np.mean(MR_PC4,axis=1),np.mean(MR_PC5,axis=1),np.mean(MR_PC6,axis=1),np.mean(MR_PC7,axis=1),np.mean(MR_PC8,axis=1),np.mean(MR_PC9,axis=1),np.mean(MR_PC10,axis=1),np.mean(MR_PC11,axis=1),np.mean(MR_PC12,axis=1),np.mean(MR_PC13,axis=1),np.mean(MR_PC14,axis=1)))
+
+# imLR = np.vstack((np.nanmean(LR_PV1,axis=1),np.nanmean(LR_PV2,axis=1),np.nanmean(LR_PV3,axis=1),np.nanmean(LR_PV4,axis=1),np.nanmean(LR_PV5,axis=1),np.nanmean(LR_PV6,axis=1),np.nanmean(LR_PV7,axis=1),np.nanmean(LR_PV8,axis=1),np.nanmean(LR_PV9,axis=1),np.nanmean(LR_PV10,axis=1),np.nanmean(LR_PV11,axis=1),np.nanmean(LR_PV12,axis=1),np.nanmean(LR_PV13,axis=1),np.nanmean(LR_PV14,axis=1)))
+
+imMR = np.vstack((np.nanmean(MR_PC1,axis=1),np.nanmean(MR_PC2,axis=1),np.nanmean(MR_PC3,axis=1),np.nanmean(MR_PC4,axis=1),np.nanmean(MR_PC5,axis=1),np.nanmean(MR_PC6,axis=1),np.nanmean(MR_PC7,axis=1),np.nanmean(MR_PC8,axis=1),np.nanmean(MR_PC9,axis=1),np.nanmean(MR_PC10,axis=1),np.nanmean(MR_PC11,axis=1),np.nanmean(MR_PC12,axis=1),np.nanmean(MR_PC13,axis=1),np.nanmean(MR_PC14,axis=1)))
+
+imLR = np.vstack((np.nanmean(LR_PC1,axis=1),np.nanmean(LR_PC2,axis=1),np.nanmean(LR_PC3,axis=1),np.nanmean(LR_PC4,axis=1),np.nanmean(LR_PC5,axis=1),np.nanmean(LR_PC6,axis=1),np.nanmean(LR_PC7,axis=1),np.nanmean(LR_PC8,axis=1),np.nanmean(LR_PC9,axis=1),np.nanmean(LR_PC10,axis=1),np.nanmean(LR_PC11,axis=1),np.nanmean(LR_PC12,axis=1),np.nanmean(LR_PC13,axis=1),np.nanmean(LR_PC14,axis=1)))
+
+
+hght = np.arange(0.5,14.5,1)
+
+sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
+
+sed_load = sed_load[['Day',
+'Daily Discharge (m3/s)',
+'Total sediment discharge (tonnes)',
+'Ave fraction fines (based on two turbidimeters)']]
+
+dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
+dt_sed = np.array(dt_sed)
+
+ind = np.argsort(dt_sed)
+
+t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
+t =  np.array([float(d.strftime('%s')) for d in dt])
+
+# O_MR = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+
+OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
 
 
 ########################################
-plt.figure(figsize=(16,16))
-plt.subplots_adjust(wspace=0.3, hspace=0.3)
-
-plt.subplot(421)
-plt.imshow(np.flipud(LR_IC1), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0m<= h <0.5m")
-plt.gca().invert_yaxis()
-plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(422)
-plt.imshow(np.flipud(LR_IC2), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0.5m<= h <1.5m")
-plt.gca().invert_yaxis()
-plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(423)
-plt.imshow(np.flipud(LR_IC3), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 1.5m<= h <2.5m")
-plt.gca().invert_yaxis()
-plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(424)
-plt.imshow(np.flipud(LR_IC4), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 2.5m<= h <3.5m")
-plt.gca().invert_yaxis()
-plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(425)
-plt.imshow(np.flipud(LR_IC5), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 3.5m<= h <4.5m")
-plt.gca().invert_yaxis()
-plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(426)
-plt.imshow(np.flipud(LR_IC6), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 4.5m<= h <5.5m")
-plt.gca().invert_yaxis()
-plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(427)
-plt.imshow(np.flipud(LR_IC7), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 5.5m<= h <6.5m")
-plt.gca().invert_yaxis()
-plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(428)
-plt.imshow(np.flipud(LR_IC8), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 6.5m<= h <8m")
-plt.gca().invert_yaxis()
-plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-
-# plt.show()
-plt.savefig("summaries/LR_wood_spacetime_intersection_perHeight_bin.png", dpi=300, bbox_inches="tight")
-plt.close()
-
-
-
-########################################
-plt.figure(figsize=(16,16))
-plt.subplots_adjust(wspace=0.3, hspace=0.3)
-
-plt.subplot(421)
-plt.imshow(np.flipud(MR_IC1), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0m<= h <0.5m")
-plt.gca().invert_yaxis()
-plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(422)
-plt.imshow(np.flipud(MR_IC2), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0.5m<= h <1.5m")
-plt.gca().invert_yaxis()
-plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(423)
-plt.imshow(np.flipud(MR_IC3), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 1.5m<= h <2.5m")
-plt.gca().invert_yaxis()
-plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(424)
-plt.imshow(np.flipud(MR_IC4), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 2.5m<= h <3.5m")
-plt.gca().invert_yaxis()
-plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(425)
-plt.imshow(np.flipud(MR_IC5), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 3.5m<= h <4.5m")
-plt.gca().invert_yaxis()
-plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(426)
-plt.imshow(np.flipud(MR_IC6), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 4.5m<= h <5.5m")
-plt.gca().invert_yaxis()
-plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(427)
-plt.imshow(np.flipud(MR_IC7), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 5.5m<= h <6.5m")
-plt.gca().invert_yaxis()
-plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(428)
-plt.imshow(np.flipud(MR_IC8), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 6.5m<= h <8m")
-plt.gca().invert_yaxis()
-plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-
-# plt.show()
-plt.savefig("summaries/MR_wood_spacetime_intersection_perHeight_bin.png", dpi=300, bbox_inches="tight")
-plt.close()
-
-
-########################################
-plt.figure(figsize=(16,8))
+plt.figure(figsize=(12,12))
 plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
 plt.subplot(221)
-im = np.vstack((np.mean(MR_IC3,axis=1),np.mean(MR_IC4,axis=1),np.mean(MR_IC5,axis=1),np.mean(MR_IC6,axis=1),np.mean(MR_IC7,axis=1),np.mean(MR_IC8,axis=1)))
-
-plt.imshow(np.flipud(im), cmap='inferno', extent=[dt[1], dt[-1],1.5,8], aspect='auto')
-plt.ylabel("Height (m)")
-cb=plt.colorbar(); cb.set_label(r"Mean Intersection coefficient")
-plt.title('a) MR', loc='left'); 
+plt.plot(dt[1:],np.nanmean(MR_PC,axis=1),'k-',label='MR')
+plt.plot(dt[1:],np.nanmean(LR_PC,axis=1),'r--',label='LR')
+plt.legend()
+plt.ylabel(r"Mean autocorrelation coefficient")
+plt.title('a) ', loc='left'); 
 
 plt.subplot(222)
-im = np.vstack((np.mean(LR_IC3,axis=1),np.mean(LR_IC4,axis=1),np.mean(LR_IC5,axis=1),np.mean(LR_IC6,axis=1),np.mean(LR_IC7,axis=1),np.mean(LR_IC8,axis=1)))
+x=np.nanmax(imMR,axis=1)
+x[np.isnan(x)]=0.0
+plt.plot(x,hght, color='k', linestyle='-',label='MR')
 
-plt.imshow(np.flipud(im), cmap='inferno', extent=[dt[1], dt[-1],1.5,8], aspect='auto')
-plt.ylabel("Height (m)")
-cb=plt.colorbar(); cb.set_label(r"Mean Intersection coefficient")
-plt.title('b) LR', loc='left'); 
+x=np.nanmax(imLR,axis=1)
+x[np.isnan(x)]=0.0
+plt.plot(x,hght, color='r', linestyle='--',label='LR')
+plt.ylim(hght[0],hght[-1])
+plt.ylabel("Height (m)"); plt.xlabel(r"Mean autocorrelation coefficient")
+plt.title('b) ', loc='left'); 
+
+plt.subplot(223)
+df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Daily Discharge (m3/s)'].mean()
+plt.plot(dt,OQ,'ro',label='Aerial imagery')
+df_mnth_Q.plot(label='Monthly mean\n discharge')
+plt.ylabel(r"Water discharge (m/s$^3$)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+plt.xlabel('')
+plt.legend()
+plt.title('c) ', loc='left');
+
+plt.subplot(224)
+df_mnth_L = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Total sediment discharge (tonnes)'].mean()
+plt.plot(dt,OS,'ro',label='Aerial imagery')
+df_mnth_L.plot(label='Monthly mean\n sediment load')
+plt.ylabel("Sediment load (tonnes)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+plt.xlabel('')
+plt.legend(loc=2)
+plt.title('d)', loc='left');
 
 # plt.show()
-plt.savefig("summaries/LR_MR_wood_mean_intersection_perHeight_bin.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/LR_MR_wood_persistence_perHeight_bin.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+######################################################
+######################################################
+
+with np.load('../results/LR_spatial_metrics.npz', allow_pickle=True) as f:
+    LR_GIO = f['LR_GIO']
+    LR_GIR = f['LR_GIR']
+    LR_CLUSTERED = f['LR_CLUSTERED']
+    LR_GTEST = f['LR_GTEST']
+    LR_FTEST=f['LR_FTEST']
+    LR_FIO=f['LR_FIO']
+    LR_FIR=f['LR_FIR']
+    LR_DISPERSED=f['LR_DISPERSED']
+
+
+F=[]
+for k in LR_FTEST:
+    try:
+        F.append(k[4][1])
+    except: 
+        F.append(k[6][1])
+
+LR_DISPERSED = np.array(LR_DISPERSED).reshape(len(times),len(LRbudget_reaches_redo))
+LR_CLUSTERED = np.array(LR_CLUSTERED).reshape(len(times),len(LRbudget_reaches_redo))
+
+# LR_FTEST = np.array(LR_FTEST).reshape(len(times),len(LRbudget_reaches_redo))
+LR_FIO = np.array(LR_FIO).reshape(len(times),len(LRbudget_reaches_redo))
+LR_FIR = np.array(LR_FIR).reshape(len(times),len(LRbudget_reaches_redo))
+
+# LR_GTEST = np.array(LR_GTEST).reshape(len(times),len(LRbudget_reaches_redo))
+LR_GIO = np.array(LR_GIO).reshape(len(times),len(LRbudget_reaches_redo))
+LR_GIR = np.array(LR_GIR).reshape(len(times),len(LRbudget_reaches_redo))
+
+
+
+
+# with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
+#     LR_BRarr = f['LR_BRarr']
+#     MR_BRarr = f['MR_BRarr']
+#     dt = f['dt']
+#     grid2sqm = f['grid2sqm']
+
+# dists = pd.read_csv('br_dists.csv')
+# LR = np.hstack((0,np.array(dists['LR'])))
+# MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+# #### divide out by area of each BR for a wood concentration\
+# A_MR = np.array(A_MR)
+# A_LR = np.array(A_LR)
+
+# ## wood
+# MR_BRarr_c = MR_BRarr/A_MR
+# LR_BRarr_c = LR_BRarr/A_LR
+
+
+fig, ax = plt.subplots(nrows=1, ncols=2)
+fig.set_size_inches(12,6)
+plt.subplots_adjust(wspace=0.2, hspace=0.2)
+
+
+prop_disp = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
+y = np.nanmean(LR_FIO,axis=-1)
+y2 = np.nanmean(LR_FIR,axis=-1)
+
+ax[1].plot(dt, y, 'k:', lw=2, label='Observed')
+ax[1].plot(dt, y2, 'k--', label='Random')
+ax[1].set_ylabel('Reach-averaged F-test statistic')
+ax[1].set_title('b) LR', loc='left');
+# ax[1].legend()
+
+ax2 = ax[1].twinx()
+# ax2.plot(dt, prop_disp,'b')
+ind = np.where(y>y2)[0]
+ax2.plot(dt[ind], prop_disp[ind],'b-o')
+ind = np.where(y<y2)[0]
+ax2.plot(dt[ind], prop_disp[ind],'ro')
+ax2.set_ylabel('Proportion of reach dispersed', color='b')
+
+
+
+# plt.show()
+plt.savefig("summaries/dispersion_stats.png", dpi=300, bbox_inches="tight")
+
 plt.close()
 
 
 
+# fig, ax = plt.subplots(nrows=2, ncols=3)
+# fig.set_size_inches(16,12)
+# plt.subplots_adjust(wspace=0.6, hspace=0.2)
 
-# ########################################
-# plt.figure(figsize=(16,16))
-# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+# # ####### flow
+# # # plt.subplot(221)
+# # # ax[0][0].plot(dt, np.nansum(MR_DISPERSED,axis=1)/len(MRbudget_reaches_redo),'k-', label='MR wood')
+# # ax[0][0].plot(dt, np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo),'r--', label='LR wood')
+# # # ax[0][0].set_ylabel('Total wood area (m2)')
 
-# plt.subplot(421)
-# plt.imshow(np.flipud(MR_MC1), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 0m<= h <0.5m")
-# plt.gca().invert_yaxis()
-# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# # ax2 = ax[0][0].twinx()
+# # # ax2.plot(dt, np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)); 
+# # df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Daily Discharge (m3/s)'].mean()
+# # df_mnth_Q.plot(axes=ax2,label='Monthly mean\n discharge')
+# # # ax2.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'b-', alpha=0.5, label='Daily discharge')
+# # ax2.set_ylabel(r'Daily Discharge (m$^3$/s)', color='b')
+# # ax[0][0].set_title('a) ', loc='left')
 
-# plt.subplot(422)
-# plt.imshow(np.flipud(MR_MC2), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 0.5m<= h <1.5m")
-# plt.gca().invert_yaxis()
-# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(423)
-# plt.imshow(np.flipud(MR_MC3), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 1.5m<= h <2.5m")
-# plt.gca().invert_yaxis()
-# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(424)
-# plt.imshow(np.flipud(MR_MC4), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 2.5m<= h <3.5m")
-# plt.gca().invert_yaxis()
-# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(425)
-# plt.imshow(np.flipud(MR_MC5), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 3.5m<= h <4.5m")
-# plt.gca().invert_yaxis()
-# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(426)
-# plt.imshow(np.flipud(MR_MC6), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 4.5m<= h <5.5m")
-# plt.gca().invert_yaxis()
-# plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(427)
-# plt.imshow(np.flipud(MR_MC7), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 5.5m<= h <6.5m")
-# plt.gca().invert_yaxis()
-# plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# plt.subplot(428)
-# plt.imshow(np.flipud(MR_MC8), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 6.5m<= h <8m")
-# plt.gca().invert_yaxis()
-# plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-
+# # # ax2.plot(dt, OQ, 'b-o') #, legend='Discharge at image acquisition'
 # # plt.show()
-# plt.savefig("summaries/MR_wood_spacetime_colocation_perHeight_bin.png", dpi=300, bbox_inches="tight")
-# plt.close()
+
+# plt.subplot(221)
+# y = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
+# plt.plot(dt, y/np.nanmax(y))
+
+# # plt.subplot(222)
+# df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="Y"))['Daily Discharge (m3/s)'].mean()
+# df_mnth_Q = df_mnth_Q/np.nanmax(df_mnth_Q)
+# df_mnth_Q.plot(label='Annual mean\n discharge')
+
+# plt.subplot(222)
+# y = np.nansum(LR_CLUSTERED,axis=1)/len(LRbudget_reaches_redo)
+# plt.plot(dt, y/np.nanmax(y))
+
+# # plt.subplot(223)
+# df_mnth_L = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="Y"))['Total sediment discharge (tonnes)'].mean()
+# df_mnth_L = df_mnth_L/np.nanmax(df_mnth_L)
+# df_mnth_L.plot(label='Annual mean\n sediment load')
+
+# # plt.subplot(223)
+
+# # plt.ylabel(r"Water discharge (m/s$^3$)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+# # plt.xlabel('')
+# # plt.legend()
+# # plt.title('c) ', loc='left');
+
+# # plt.subplot(224)
+
+# # plt.ylabel("Sediment load (tonnes)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+# # plt.xlabel('')
+# # plt.legend(loc=2)
+# # plt.title('d)', loc='left');
+
+# plt.show()
 
 
+# plt.plot(np.nanmean(LR_FIO,axis=1)); plt.show()
+
+# plt.plot(np.nansum(LR_CLUSTERED,axis=1), np.nansum(LR_DISPERSED,axis=1), 'ko'); plt.show()
 
 
 ######################################################
@@ -919,6 +1120,181 @@ np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, M
 
 
 
+
+
+
+# ########################################
+# plt.figure(figsize=(16,16))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+# plt.subplot(421)
+# plt.imshow(np.flipud(LR_IC1), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0m<= h <0.5m")
+# plt.gca().invert_yaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(422)
+# plt.imshow(np.flipud(LR_IC2), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0.5m<= h <1.5m")
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(423)
+# plt.imshow(np.flipud(LR_IC3), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 1.5m<= h <2.5m")
+# plt.gca().invert_yaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(424)
+# plt.imshow(np.flipud(LR_IC4), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 2.5m<= h <3.5m")
+# plt.gca().invert_yaxis()
+# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(425)
+# plt.imshow(np.flipud(LR_IC5), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 3.5m<= h <4.5m")
+# plt.gca().invert_yaxis()
+# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(426)
+# plt.imshow(np.flipud(LR_IC6), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 4.5m<= h <5.5m")
+# plt.gca().invert_yaxis()
+# plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(427)
+# plt.imshow(np.flipud(LR_IC7), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 5.5m<= h <6.5m")
+# plt.gca().invert_yaxis()
+# plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(428)
+# plt.imshow(np.flipud(LR_IC8), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 6.5m<= h <8m")
+# plt.gca().invert_yaxis()
+# plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+
+# # plt.show()
+# plt.savefig("summaries/LR_wood_spacetime_intersection_perHeight_bin.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+
+# ########################################
+# plt.figure(figsize=(16,16))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+# plt.subplot(421)
+# plt.imshow(np.flipud(MR_IC1), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0m<= h <0.5m")
+# plt.gca().invert_yaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(422)
+# plt.imshow(np.flipud(MR_IC2), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0.5m<= h <1.5m")
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(423)
+# plt.imshow(np.flipud(MR_IC3), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 1.5m<= h <2.5m")
+# plt.gca().invert_yaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(424)
+# plt.imshow(np.flipud(MR_IC4), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 2.5m<= h <3.5m")
+# plt.gca().invert_yaxis()
+# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(425)
+# plt.imshow(np.flipud(MR_IC5), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 3.5m<= h <4.5m")
+# plt.gca().invert_yaxis()
+# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(426)
+# plt.imshow(np.flipud(MR_IC6), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 4.5m<= h <5.5m")
+# plt.gca().invert_yaxis()
+# plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(427)
+# plt.imshow(np.flipud(MR_IC7), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 5.5m<= h <6.5m")
+# plt.gca().invert_yaxis()
+# plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(428)
+# plt.imshow(np.flipud(MR_IC8), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 6.5m<= h <8m")
+# plt.gca().invert_yaxis()
+# plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+
+# # plt.show()
+# plt.savefig("summaries/MR_wood_spacetime_intersection_perHeight_bin.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+# ########################################
+# plt.figure(figsize=(16,16))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+# plt.subplot(421)
+# plt.imshow(np.flipud(MR_MC1), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 0m<= h <0.5m")
+# plt.gca().invert_yaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(422)
+# plt.imshow(np.flipud(MR_MC2), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 0.5m<= h <1.5m")
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(423)
+# plt.imshow(np.flipud(MR_MC3), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 1.5m<= h <2.5m")
+# plt.gca().invert_yaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(424)
+# plt.imshow(np.flipud(MR_MC4), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 2.5m<= h <3.5m")
+# plt.gca().invert_yaxis()
+# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(425)
+# plt.imshow(np.flipud(MR_MC5), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 3.5m<= h <4.5m")
+# plt.gca().invert_yaxis()
+# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(426)
+# plt.imshow(np.flipud(MR_MC6), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 4.5m<= h <5.5m")
+# plt.gca().invert_yaxis()
+# plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(427)
+# plt.imshow(np.flipud(MR_MC7), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 5.5m<= h <6.5m")
+# plt.gca().invert_yaxis()
+# plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(428)
+# plt.imshow(np.flipud(MR_MC8), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 6.5m<= h <8m")
+# plt.gca().invert_yaxis()
+# plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+
+
+# # plt.show()
+# plt.savefig("summaries/MR_wood_spacetime_colocation_perHeight_bin.png", dpi=300, bbox_inches="tight")
+# plt.close()
 
 
 
