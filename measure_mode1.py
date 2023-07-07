@@ -843,6 +843,37 @@ LR_GIR = np.array(LR_GIR).reshape(len(times),len(LRbudget_reaches_redo))
 
 
 
+with np.load('../results/MR_spatial_metrics.npz', allow_pickle=True) as f:
+    MR_GIO = f['MR_GIO']
+    MR_GIR = f['MR_GIR']
+    MR_CLUSTERED = f['MR_CLUSTERED']
+    MR_GTEST = f['MR_GTEST']
+    MR_FTEST=f['MR_FTEST']
+    MR_FIO=f['MR_FIO']
+    MR_FIR=f['MR_FIR']
+    MR_DISPERSED=f['MR_DISPERSED']
+
+
+# FMR=[]
+# for k in MR_FTEST:
+#     try:
+#         FMR.append(k[4][1])
+#     except: 
+#         FMR.append(k[6][1])
+
+MR_DISPERSED = np.array(MR_DISPERSED).reshape(len(times),len(MRbudget_reaches_redo))
+MR_CLUSTERED = np.array(MR_CLUSTERED).reshape(len(times),len(MRbudget_reaches_redo))
+
+# MR_FTEST = np.array(MR_FTEST).reshape(len(times),len(MRbudget_reaches_redo))
+MR_FIO = np.array(MR_FIO).reshape(len(times),len(MRbudget_reaches_redo))
+MR_FIR = np.array(MR_FIR).reshape(len(times),len(MRbudget_reaches_redo))
+
+# MR_GTEST = np.array(MR_GTEST).reshape(len(times),len(MRbudget_reaches_redo))
+MR_GIO = np.array(MR_GIO).reshape(len(times),len(MRbudget_reaches_redo))
+MR_GIR = np.array(MR_GIR).reshape(len(times),len(MRbudget_reaches_redo))
+
+
+
 # with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
 #     LR_BRarr = f['LR_BRarr']
 #     MR_BRarr = f['MR_BRarr']
@@ -864,8 +895,26 @@ LR_GIR = np.array(LR_GIR).reshape(len(times),len(LRbudget_reaches_redo))
 
 fig, ax = plt.subplots(nrows=1, ncols=2)
 fig.set_size_inches(12,6)
-plt.subplots_adjust(wspace=0.2, hspace=0.2)
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
+prop_disp = np.nansum(MR_DISPERSED,axis=1)/len(MRbudget_reaches_redo)
+y = np.nanmean(MR_FIO,axis=-1)
+y2 = np.nanmean(MR_FIR,axis=-1)
+
+ax[0].plot(dt, y, 'k:', lw=2, label='Observed')
+ax[0].plot(dt, y2, 'k--', label='Random')
+ax[0].set_ylabel('Reach-averaged F-test statistic')
+ax[0].set_title('a) MR', loc='left');
+# ax[1].legend()
+
+ax20 = ax[0].twinx()
+# ax2.plot(dt, prop_disp,'b')
+ind = np.where(y>y2)[0]
+ax20.plot(dt[ind], prop_disp[ind],'b-o')
+ind = np.where(y<y2)[0]
+ax20.plot(dt[ind], prop_disp[ind],'ro')
+ax20.set_ylabel('Proportion of reach dispersed', color='b')
+ax20.set_ylim(.3,.8)
 
 prop_disp = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
 y = np.nanmean(LR_FIO,axis=-1)
@@ -884,9 +933,7 @@ ax2.plot(dt[ind], prop_disp[ind],'b-o')
 ind = np.where(y<y2)[0]
 ax2.plot(dt[ind], prop_disp[ind],'ro')
 ax2.set_ylabel('Proportion of reach dispersed', color='b')
-
-
-
+ax2.set_ylim(.3,.8)
 # plt.show()
 plt.savefig("summaries/dispersion_stats.png", dpi=300, bbox_inches="tight")
 
