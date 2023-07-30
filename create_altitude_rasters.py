@@ -47,11 +47,11 @@ times = [
     '2017-09-22'
 ]
 
-# n_workers = 20
-# threads_per_worker = 2
-# memory_limit='100GB'
-# # ## start client
-# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+n_workers = 20
+threads_per_worker = 2
+memory_limit='100GB'
+# ## start client
+client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 cwd = os.getcwd()
 
@@ -103,7 +103,7 @@ y=np.array(points)[:,1]
 
 print(len(x))
 
-zMR=sorted(z)
+zLR=sorted(z)
 
 
 ## https://gist.github.com/amroamroamro/1db8d69b4b65e8bc66a6
@@ -123,6 +123,7 @@ X,Y = np.meshgrid(dem_geotiffs_ds.x.to_numpy(), dem_geotiffs_ds.y.to_numpy())
 XX = X.flatten()
 YY = Y.flatten()
 del Y
+
 # best-fit quadratic curve
 A = np.c_[np.ones(len(x)), np.vstack((x,y)).T, np.prod(np.vstack((x,y)).T, axis=1), np.vstack((x,y)).T**2]
 C,_,_,_ = scipy.linalg.lstsq(A, z)
@@ -131,9 +132,21 @@ C,_,_,_ = scipy.linalg.lstsq(A, z)
 Z = np.dot(np.c_[np.ones(XX.shape), XX, YY, XX*YY, XX**2, YY**2], C).reshape(X.shape)
 del X
 del A, C, x, y, points
-
+del X, YY
 # time = '2017-09-22'
 offset = 10
+
+
+time='2013-09-19'
+tmp = dem_geotiffs_ds.dem.sel(time=time).to_numpy()
+tmp = tmp - tmp.min()
+tmp = (offset+tmp)-Z
+tmp[tmp<0] = np.nan
+tmp = tmp - offset 
+plt.imshow(tmp); plt.colorbar(); plt.axis('off'); plt.savefig('DEM_detrend.png',dpi=300, bbox_inches='tight'); plt.close()
+
+
+
 
 for time in times[:8]:
         
@@ -262,32 +275,43 @@ print(len(x))
 
 zMR=sorted(z)
 
-# zMR = np.array(zMR)
+
+dists = pd.read_csv('br_dists.csv')
+LR = np.hstack((0,np.array(dists['LR'])))
+MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+
+zLR = np.array(zLR)
+
+zMR = np.array(zMR)
 # zMR = zMR[zMR<25]
 # zMR = zMR[zMR>1]
 
-# plt.plot(np.linspace(0,MR[-1],len(zMR)), (sorted(zMR)[::-1]-np.max(zMR))/1000,'k',label='MR')
-# plt.plot(np.linspace(0,LR[-1],len(zLR)), (sorted(zLR)[::-1]-np.max(zLR))/1000,'r--', lw=2, label='LR')
-# yl=plt.ylim()
 
-# O = np.linspace(0,MR[-1],len(zMR))
-# E = (sorted(zMR)[::-1]-np.max(zMR))/1000
-# A = np.vstack([np.array(O), np.ones(len(O))]).T
-# m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
-# plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'k:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
+plt.figure(figsize=(4,8))
 
-# O = np.linspace(0,LR[-1],len(zLR))
-# E = (sorted(zLR)[::-1]-np.max(zLR))/1000
-# A = np.vstack([np.array(O), np.ones(len(O))]).T
-# m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
-# plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'r:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
+plt.plot(np.linspace(0,MR[-1],len(zMR)), (sorted(zMR)[::-1]-np.max(zMR))/1000,'k',label='MR')
+plt.plot(np.linspace(0,LR[-1],len(zLR)), (sorted(zLR)[::-1]-np.max(zLR))/1000,'r--', lw=2, label='LR')
+yl=plt.ylim()
+
+O = np.linspace(0,MR[-1],len(zMR))
+E = (sorted(zMR)[::-1]-np.max(zMR))/1000
+A = np.vstack([np.array(O), np.ones(len(O))]).T
+m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'k:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
+
+O = np.linspace(0,LR[-1],len(zLR))
+E = (sorted(zLR)[::-1]-np.max(zLR))/1000
+A = np.vstack([np.array(O), np.ones(len(O))]).T
+m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'r:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
 
 
-# plt.ylabel('Elevation drop (km)'); plt.xlabel('Distance downstream (km)')
-# plt.legend()
-# # plt.show()
-# plt.savefig("Elev_profiles.png", dpi=300, bbox_inches="tight")
-# plt.close()
+plt.ylabel('Elevation drop (km)'); plt.xlabel('Distance downstream (km)')
+plt.legend()
+# plt.show()
+plt.savefig("Elev_profiles.png", dpi=300, bbox_inches="tight")
+plt.close()
 
 
 
