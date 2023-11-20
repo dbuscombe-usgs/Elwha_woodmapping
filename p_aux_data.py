@@ -146,31 +146,35 @@ plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
 plt.subplot(221)
 plt.plot(times, [len(f) for f in all_dirs], 'k-o')
-plt.ylabel('Number of LR bars sampled for grain size')
+plt.ylabel('Number of LR bars \n sampled for grain size')
 plt.title('a)', loc='left')
 
 plt.gca().set_xticks(times)
 plt.gca().set_xticklabels([str(t) for t in times], rotation = 45)
+plt.ylim(0,8)
 
 plt.subplot(222)
 plt.errorbar(times, Dyears, Syears, fmt='o', color='black',
              ecolor='lightgray', elinewidth=3, capsize=0)
 plt.plot(times, Dyears,'--',color=[.5,.5,.5])
-plt.ylabel('Median bulk grain size (mm) of LR bars')
+plt.ylabel('Median bulk grain size (mm)')
 plt.title('b)', loc='left')
 
 plt.gca().set_xticks(times)
 plt.gca().set_xticklabels([str(t) for t in times], rotation = 45)
+plt.ylim(0,125)
 
 plt.subplot(223)
 plt.plot(rack_years, np.nanmean(rack_vol, axis=1), 'k-o')
-plt.ylabel(r'Mean wood rack volume (m$^3$) in LR')
+plt.ylabel(r'Mean wood rack volume (m$^3$)')
 plt.title('c)', loc='left')
+plt.ylim(0,900)
 
 plt.subplot(224)
 plt.plot(pool_years, np.nanmean(dep_ft, axis=1)*0.3048, 'k-o')
-plt.ylabel(r'Mean pool depth (m) in LR')
+plt.ylabel(r'Mean pool depth (m)')
 plt.title('d)', loc='left')
+plt.ylim(0,2.1)
 
 # plt.show()
 plt.savefig("summaries/LR_wood_grainsize_measurements.png", dpi=300, bbox_inches="tight")

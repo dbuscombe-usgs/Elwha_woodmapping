@@ -56,7 +56,6 @@ memory_limit='20GB'
 
 client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
-
 cwd = os.getcwd()
 
 ## factor that converts grid uints 1/8 x 1/8
@@ -65,7 +64,6 @@ grid2sqm = 64
 
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
-
 
 dt = [datetime.strptime(time,'%Y-%m-%d') for time in times]
 
@@ -101,6 +99,20 @@ dists = pd.read_csv('br_dists.csv')
 LR = np.hstack((0,np.array(dists['LR'])))
 MR = np.hstack((0,np.array(dists['MR'][:43])))
 
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+LR = rescale_array(LR,11,2)
+MR = rescale_array(MR[::-1],12,20)
 
 #############################################################
 ### LR
@@ -170,6 +182,63 @@ LR_dem_detrend_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
 
 
 # #### MR
+# MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
+# for counter,time in enumerate(times):
+#     print(counter)
+#     if counter>0:
+#         tmp = MRwood_geotiffs_ds.wood.sel(time=times[counter])
+#         tmp0 = MRwood_geotiffs_ds.wood.sel(time=times[counter-1])
+       
+#         for g in tqdm(MRbudget_reaches_redo):
+#             wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#             wood_c0 = tmp0.rio.clip([g], tmp.rio.crs)
+
+#             MR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#             MR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#             MR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#             pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+#             MR_PC.append(pcc)
+#             MR_PV.append(pval)
+
+# MR_IC = np.array(MR_IC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_MO = np.array(MR_MO).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_MC = np.array(MR_MC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC = np.array(MR_PC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV = np.array(MR_PV).reshape(len(times)-1,len(MRbudget_reaches_redo))
+
+# np.savez('summaries/MR_association_metrics_surveypairs.npz', MR_IC = MR_IC, MR_MO = MR_MO, MR_MC = MR_MC, MR_PC = MR_PC, MR_PV=MR_PV)
+
+
+# #### LR
+# LR_MO=[]; LR_MC = []; LR_IC = []; LR_PC = []; LR_PV=[]
+# for counter,time in enumerate(times):
+#     print(counter)
+#     if counter>0:
+#         tmp = LRwood_geotiffs_ds.wood.sel(time=times[counter])
+#         tmp0 = LRwood_geotiffs_ds.wood.sel(time=times[counter-1])
+       
+#         for g in tqdm(LRbudget_reaches_redo):
+#             wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#             wood_c0 = tmp0.rio.clip([g], tmp.rio.crs)
+
+#             LR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#             LR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#             LR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+#             pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+#             LR_PC.append(pcc)
+#             LR_PV.append(pval)
+
+# LR_IC = np.array(LR_IC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_MO = np.array(LR_MO).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_MC = np.array(LR_MC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC = np.array(LR_PC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV = np.array(LR_PV).reshape(len(times)-1,len(LRbudget_reaches_redo))
+
+# np.savez('summaries/LR_association_metrics_surveypairs.npz', LR_IC = LR_IC, LR_MO = LR_MO, LR_MC = LR_MC, LR_PC = LR_PC, LR_PV=LR_PV)
+
+
+
+# #### MR
 # wood0 = MRwood_geotiffs_ds.wood.sel(time=times[0])
 
 # MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
@@ -223,13 +292,29 @@ LR_dem_detrend_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
 
 
 with np.load('summaries/LR_association_metrics.npz', allow_pickle=True) as f:
+    LR_ICg = f['LR_IC']
+    LR_MOg = f['LR_MO']
+    LR_MCg = f['LR_MC']
+    LR_PCg = f['LR_PC']
+    LR_PVg = f['LR_PV']
+
+with np.load('summaries/MR_association_metrics.npz', allow_pickle=True) as f:
+    MR_ICg = f['MR_IC']
+    MR_MOg = f['MR_MO']
+    MR_MCg = f['MR_MC']
+    MR_PCg = f['MR_PC']
+    MR_PVg = f['MR_PV']
+
+
+
+with np.load('summaries/LR_association_metrics_surveypairs.npz', allow_pickle=True) as f:
     LR_IC = f['LR_IC']
     LR_MO = f['LR_MO']
     LR_MC = f['LR_MC']
     LR_PC = f['LR_PC']
     LR_PV = f['LR_PV']
 
-with np.load('summaries/MR_association_metrics.npz', allow_pickle=True) as f:
+with np.load('summaries/MR_association_metrics_surveypairs.npz', allow_pickle=True) as f:
     MR_IC = f['MR_IC']
     MR_MO = f['MR_MO']
     MR_MC = f['MR_MC']
@@ -237,55 +322,403 @@ with np.load('summaries/MR_association_metrics.npz', allow_pickle=True) as f:
     MR_PV = f['MR_PV']
 
 
+import geopandas as gpd
+
+file = '../raw_data/GIS/LR_transects_clipped_active.geojson'
+# file = '../raw_data/GIS/LR_active_widths.geojson'
+LR_widths = gpd.read_file(file)
+LR_width = LR_widths['width'].values
+LR_full_width = LR_widths['full_width'].values
+
+# features = []
+# # Use explode to break multilinestrings in linestrings
+# feature_exploded = LR_widths.explode(ignore_index=True)
+# # For each linestring portion of feature convert to lat,lon tuples
+# lat_lng = feature_exploded.apply(
+#     lambda row: {str(row.Id): np.array(np.array(row.geometry.coords).tolist())},
+#     axis=1,
+# )
+# features = list(lat_lng)
+# new_dict = {}
+# for item in list(features):
+#     new_dict = {**new_dict, **item}
+
+# [np.mean(new_dict[n],axis=0).tolist() for n in new_dict.keys()]
+
+
+file = '../raw_data/GIS/MR_transects_clipped_active.geojson'
+# file = '../raw_data/GIS/MR_active_widths.geojson'
+MR_widths = gpd.read_file(file)
+MR_width = MR_widths['width'].values
+MR_full_width = MR_widths['full_width'].values
+
+
+## plot width vbersus persistenmce
+from scipy.signal import convolve2d
+
+
+# ##========================================================
+def inpaint_nans(im):
+    ipn_kernel = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])  # kernel for inpaint_nans
+    nans = np.isnan(im)
+    while np.sum(nans) > 0:
+        im[nans] = 0
+        vNeighbors = convolve2d(
+            (nans == False), ipn_kernel, mode="same", boundary="symm"
+        )
+        im2 = convolve2d(im, ipn_kernel, mode="same", boundary="symm")
+        im2[vNeighbors > 0] = im2[vNeighbors > 0] / vNeighbors[vNeighbors > 0]
+        im2[vNeighbors == 0] = np.nan
+        im2[(nans == False)] = im[(nans == False)]
+        im = im2
+        nans = np.isnan(im)
+    return im
+
+
+MR_PC2 = inpaint_nans(np.flipud(MR_PC))
+LR_PC2 = inpaint_nans(np.flipud(LR_PC))
+
+MR_PC2[MR_PC2<0] = 0
+LR_PC2[LR_PC2<0] = 0
+
+
+
+MR_PC2g = inpaint_nans(np.flipud(MR_PCg))
+LR_PC2g = inpaint_nans(np.flipud(LR_PCg))
+
+MR_PC2g[MR_PC2g<0] = 0
+LR_PC2g[LR_PC2g<0] = 0
+
+########################################
+plt.figure(figsize=(16,12))
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+plt.subplot(231)
+plt.imshow(MR_PC2g, cmap='inferno', extent=[MR[0], MR[-1] , dt[1], dt[-1]], aspect='auto', vmax=1, vmin=0)
+# cb=plt.colorbar(); cb.set_label(r"Correlation coefficient")
+plt.gca().invert_yaxis()
+# plt.gca().invert_xaxis()
+plt.title('a) ', loc='left'); plt.xlabel("River kilometer"); 
+
+plt.subplot(232)
+plt.imshow(LR_PC2g, cmap='inferno', extent=[LR[0], LR[-1] , dt[1], dt[-1]], aspect='auto', vmax=1, vmin=0)
+# cb=plt.colorbar(); cb.set_label(r"Correlation coefficient")
+plt.gca().invert_yaxis()
+# plt.gca().invert_xaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("River kilometer"); 
+
+plt.subplot(233)
+plt.plot(np.nanmean(MR_PC2g,axis=1)[::-1],dt[1:],'k-', label='MR')
+im=plt.plot(np.nanmean(LR_PC2g,axis=1)[::-1],dt[1:],'r--', label='LR')
+plt.legend(fontsize=8)
+plt.gca().invert_yaxis()
+plt.title('b) ', loc='left'); plt.xlabel(r"Mean autocorrelation");
+plt.xlim(0,.4)
+# plt.colorbar(im)
+
+plt.subplot(234)
+im2=plt.plot(MR,np.nanmean(MR_PC2g,axis=0),'k',lw=2)
+# cb=plt.colorbar();
+# plt.gca().invert_yaxis()
+plt.gca().invert_xaxis()
+plt.title('c) ', loc='left'); plt.xlabel("River kilometer"); 
+plt.ylim(0,.6)
+plt.xlim(20,12)
+
+plt.subplot(235)
+im3=plt.plot(LR,np.nanmean(LR_PC2g,axis=0),'r--',lw=2)
+# cb=plt.colorbar();
+# plt.gca().invert_yaxis()
+plt.gca().invert_xaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("River kilometer"); 
+plt.ylim(0,.6)
+plt.xlim(11,2)
+
+plt.subplot(236)
+x = np.max(MR_PC2g,axis=0)
+y = MR_width.copy()
+x = x[x>0]
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x)
+plt.plot(y,xi,'ko', label='MR')
+x = np.max(LR_PC2g,axis=0)
+y = LR_width.copy()
+x = x[x>0]
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x)
+# yi = np.interp(np.linspace(np.nanmin(y), np.nanmax(y),len(x)),np.linspace(0,len(y),len(y)),y)
+plt.plot(y,xi,'rs', label='LR')
+plt.title('d) ', loc='left'); 
+plt.legend()
+plt.ylabel("Maximum\nautocorrelation (-)"); plt.xlabel("Maximum active\nchannel width (m)");
+# plt.ylim(0,.4)
+
+
+plt.show()
+# plt.savefig("summaries/wood_spacetime_persistence.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+
+sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
+
+sed_load = sed_load[['Day',
+'Daily Discharge (m3/s)',
+'Total sediment discharge (tonnes)',
+'Ave fraction fines (based on two turbidimeters)']]
+
+
+dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
+dt_sed = np.array(dt_sed)
+
+ind = np.argsort(dt_sed)
+
+t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
+t =  np.array([float(d.strftime('%s')) for d in dt])
+
+
+# O_MR = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+
+OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
+
+
+# plt.plot(OQ[1:], np.mean(MR_IC2,axis=1), 'ko')
+# plt.plot(OQ[1:], np.mean(LR_IC2,axis=1), 'rs')
+# plt.show()
+
+# plt.plot(OQ[1:], np.max(MR_PC2,axis=1), 'ko')
+# plt.plot(OQ[1:], np.max(LR_PC2,axis=1), 'rs')
+# plt.show()
+
+
+
+########################################
+plt.figure(figsize=(16,12))
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+plt.subplot(231)
+plt.imshow(MR_PC2, cmap='inferno', extent=[MR[0], MR[-1] , dt[1], dt[-1]], aspect='auto', vmax=1, vmin=0)
+# cb=plt.colorbar(); cb.set_label(r"Correlation coefficient")
+plt.gca().invert_yaxis()
+# plt.gca().invert_xaxis()
+plt.title('a) ', loc='left'); plt.xlabel("River kilometer"); 
+
+plt.subplot(232)
+plt.imshow(LR_PC2, cmap='inferno', extent=[LR[0], LR[-1] , dt[1], dt[-1]], aspect='auto', vmax=1, vmin=0)
+# cb=plt.colorbar(); cb.set_label(r"Correlation coefficient")
+plt.gca().invert_yaxis()
+# plt.gca().invert_xaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("River kilometer"); 
+
+plt.subplot(233)
+plt.plot(np.nanmean(MR_PC2,axis=1),dt[1:],'k-', label='MR')
+im=plt.plot(np.nanmean(LR_PC2,axis=1),dt[1:],'r--', label='LR')
+plt.legend(fontsize=8)
+plt.gca().invert_yaxis()
+plt.title('b) ', loc='left'); plt.xlabel(r"Median autocorrelation");
+plt.xlim(0,.8)
+# plt.colorbar(im)
+
+plt.subplot(234)
+im2=plt.plot(MR,np.nanmedian(MR_PC2,axis=0),'k',lw=2)
+# cb=plt.colorbar();
+# plt.gca().invert_yaxis()
+plt.gca().invert_xaxis()
+plt.title('c) ', loc='left'); plt.xlabel("River kilometer"); 
+plt.ylim(0,.8)
+plt.xlim(20,12)
+
+plt.subplot(235)
+im3=plt.plot(LR,np.nanmedian(LR_PC2,axis=0),'r--',lw=2)
+# cb=plt.colorbar();
+# plt.gca().invert_yaxis()
+plt.gca().invert_xaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("River kilometer"); 
+plt.ylim(0,.8)
+plt.xlim(11,2)
+
+plt.subplot(236)
+x = np.max(MR_PC2,axis=0)
+y = MR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x, period=1)
+plt.plot(y,xi,'ko', alpha=0.5, label='MR')
+x = np.max(LR_PC2,axis=0)
+y = LR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x, period=1)
+plt.plot(y,xi,'rs', alpha=0.5, label='LR')
+
+plt.title('d) ', loc='left'); 
+plt.legend()
+plt.ylabel("Maximum\nautocorrelation (-)"); plt.xlabel("Channel width (m)");
+plt.ylim(0,1)
+
+plt.savefig("summaries/wood_spacetime_persistence_pairwise_medians.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+
+
+
+# plt.subplot(337)
+# plt.plot(OQ[1:], np.median(MR_PC2,axis=1), 'ko', label='MR')
+# plt.plot(OQ[1:], np.median(LR_PC2,axis=1), 'rs', label='LR')
+# plt.title('e) ', loc='left'); 
+# plt.legend()
+# plt.xlabel("Discharge (m$^3$/s)"); plt.ylabel("Median autocorrelation (-)");
+# # plt.ylim(0,.16)
+
+# plt.subplot(338)
+# plt.plot(np.log(OS[1:]), np.median(MR_PC2,axis=1), 'ko', label='MR')
+# plt.plot(np.log(OS[1:]), np.median(LR_PC2,axis=1), 'rs', label='LR')
+# plt.title('f) ', loc='left'); 
+# plt.legend()
+# plt.xlabel("Sediment load (log tonnes)"); plt.ylabel("Median autocorrelation (-)");
+# # plt.ylim(0,.16)
+
+# plt.subplot(339)
+# x = np.max(MR_PC2g,axis=0)
+# # x = np.max(MR_PC2g,axis=0)
+# y = MR_full_width.copy()
+# xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x)
+# plt.plot(y,xi,'ko', label='MR')
+# x = np.max(LR_PC2g,axis=0)
+# # x = np.median(LR_PC2g,axis=0)
+# y = LR_full_width.copy()
+# xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x)
+# plt.plot(y,xi,'rs', label='LR')
+# plt.title('g) ', loc='left'); 
+# plt.legend()
+# plt.ylabel("Max\nautocorrelation (-)"); plt.xlabel("Max channel\n width (m)");
+# # plt.ylim(0,.66)
+
+
+# MR_IC2 = inpaint_nans(np.flipud(MR_IC))
+# LR_IC2 = inpaint_nans(np.flipud(LR_IC))
+
+# MR_IC2[MR_IC2<0] = 0
+# LR_IC2[LR_IC2<0] = 0
 
 
 
 # ########################################
-# plt.figure(figsize=(16,16))
+# plt.figure(figsize=(16,12))
 # plt.subplots_adjust(wspace=0.3, hspace=0.3)
 
-# plt.subplot(321)
-# plt.imshow(np.flipud(MR_IC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient")
+# plt.subplot(231)
+# plt.imshow(MR_IC2, cmap='inferno', extent=[MR[0], MR[-1] , dt[1], dt[-1]], aspect='auto', vmax=1, vmin=0)
+# # cb=plt.colorbar(); cb.set_label(r"Correlation coefficient")
 # plt.gca().invert_yaxis()
-# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# # plt.gca().invert_xaxis()
+# plt.title('a) ', loc='left'); plt.xlabel("River kilometer"); 
 
-# # plt.subplot(332)
-# # plt.imshow(np.flipud(MR_PC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# # cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
+# plt.subplot(232)
+# plt.imshow(LR_IC2, cmap='inferno', extent=[LR[0], LR[-1] , dt[1], dt[-1]], aspect='auto', vmax=1, vmin=0)
+# # cb=plt.colorbar(); cb.set_label(r"Correlation coefficient")
+# plt.gca().invert_yaxis()
+# # plt.gca().invert_xaxis()
+# # plt.title('b) ', loc='left'); plt.xlabel("River kilometer"); 
+
+# plt.subplot(233)
+# plt.plot(np.nanmean(MR_IC2,axis=1),dt[1:],'k-', label='MR')
+# im=plt.plot(np.nanmean(LR_IC2,axis=1),dt[1:],'r--', label='LR')
+# plt.legend(fontsize=8)
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel(r"Mean autocorrelation");
+# plt.xlim(0,.8)
+# # plt.colorbar(im)
+
+# plt.subplot(234)
+# im2=plt.plot(MR,np.nanmean(MR_IC2,axis=0),'k',lw=2)
+# # cb=plt.colorbar();
 # # plt.gca().invert_yaxis()
-# # plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.gca().invert_xaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("River kilometer"); 
+# plt.ylim(0,.8)
+# plt.xlim(20,12)
 
-# plt.subplot(322)
-# plt.imshow(np.flipud(MR_MC), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Manders co-location coefficient")
-# plt.gca().invert_yaxis()
-# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.subplot(235)
+# im3=plt.plot(LR,np.nanmean(LR_IC2,axis=0),'r--',lw=2)
+# # cb=plt.colorbar();
+# # plt.gca().invert_yaxis()
+# plt.gca().invert_xaxis()
+# # plt.title('c) ', loc='left'); plt.xlabel("River kilometer"); 
+# plt.ylim(0,.8)
+# plt.xlim(11,2)
+
+# plt.subplot(236)
+# x = np.max(MR_IC2,axis=0)
+# y = MR_widths.copy()
+# xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x)
+# plt.plot(y,xi,'ko', label='MR')
+# x = np.max(LR_IC2,axis=0)
+# y = LR_widths.copy()
+# xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x)
+# plt.plot(y,xi,'rs', label='LR')
+# plt.title('c) ', loc='left'); 
+# plt.legend()
+# plt.ylabel("Maximum\nautocorrelation (-)"); plt.xlabel("Maximum active\nchannel width (m)");
+# plt.ylim(0,.8)
+
+
+
+# # plt.show()
+# plt.savefig("summaries/wood_spacetime_persistence_pairwiseIC.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+
 
 # plt.subplot(323)
-# plt.imshow(np.flipud(LR_IC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient")
-# plt.gca().invert_yaxis()
-# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
-
-# # plt.subplot(335)
-# # plt.imshow(np.flipud(LR_PC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
-# # cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
-# # plt.gca().invert_yaxis()
-# # plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.plot(MR,np.nanmean(MR_PC,axis=0),'k--', label='MR')
 
 # plt.subplot(324)
-# plt.imshow(np.flipud(LR_MC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# plt.plot(LR,np.nanmean(LR_PC,axis=0),'r--', label='LR')
+# # plt.title('f) ', loc='left'); plt.ylabel(r"Mean autocorrelation");
+# plt.title('f) ', loc='left'); plt.ylabel(r"Mean autocorrelation"); plt.xlabel("River kilometer"); 
+
+
+
+# plt.plot(dt[1:],np.nanmean(LR_PC,axis=1),'r--', label='LR, co-location')
+# plt.legend(fontsize=8)
+# plt.ylim(0,.7)
+
+
+
+# plt.subplot(332)
+# plt.imshow(np.flipud(MR_PC), cmap='inferno', extent=[MR[0], MR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('b) ', loc='left'); plt.xlabel("River kilometer(km)"); 
+
+# plt.subplot(322)
+# plt.imshow(np.flipud(MR_MC), cmap='inferno', extent=[MR[0], MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Manders co-location coefficient")
 # plt.gca().invert_yaxis()
-# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('b) ', loc='left'); plt.xlabel("River kilometer"); 
 
-# # plt.subplot(337)
-# # plt.plot(MR, np.nanmean(MR_PC,axis=0),'k-', label='MR')
-# # plt.plot(LR, np.nanmean(LR_PC,axis=0),'r--', label='LR')
-# # plt.ylabel(r"Mean autocorrelation"); plt.xlabel("Distance downstream (km)"); 
-# # plt.legend()
-# # plt.title('g) ', loc='left')
+# plt.subplot(323)
+# plt.imshow(np.flipud(LR_IC), cmap='inferno', extent=[MR[0], LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Intersection coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('c) ', loc='left'); plt.xlabel("River kilometer"); 
+
+# plt.subplot(335)
+# plt.imshow(np.flipud(LR_PC), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Pearson correlation coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('e) ', loc='left'); plt.xlabel("River kilometer(km)"); 
+
+# plt.subplot(324)
+# plt.imshow(np.flipud(LR_MC), cmap='inferno', extent=[MR[0], LR[-1] , dt[1], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"Manders co-location coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('d) ', loc='left'); plt.xlabel("River kilometer"); 
+
+# plt.subplot(337)
+# plt.plot(MR, np.nanmean(MR_PC,axis=0),'k-', label='MR')
+# plt.plot(LR, np.nanmean(LR_PC,axis=0),'r--', label='LR')
+# plt.ylabel(r"Mean autocorrelation"); plt.xlabel("River kilometer(km)"); 
+# plt.legend()
+# plt.title('g) ', loc='left')
 
 # plt.subplot(325)
 # plt.plot(dt[1:],np.nanmean(MR_IC,axis=1),'k-', label='MR, intersection')
@@ -304,11 +737,7 @@ with np.load('summaries/MR_association_metrics.npz', allow_pickle=True) as f:
 # plt.plot(LR,np.nanmean(LR_PC,axis=0),'r--', label='LR, co-location')
 # # plt.title('f) ', loc='left'); plt.ylabel(r"Mean autocorrelation");
 # plt.legend(fontsize=8)
-# plt.title('f) ', loc='left'); plt.ylabel(r"Mean persistence"); plt.xlabel("Distance downstream (km)"); 
-
-# # plt.show()
-# plt.savefig("summaries/wood_spacetime_persistence.png", dpi=300, bbox_inches="tight")
-# plt.close()
+# plt.title('f) ', loc='left'); plt.ylabel(r"Mean persistence"); plt.xlabel("River kilometer"); 
 
 
 
@@ -455,69 +884,69 @@ with np.load('summaries/MR_association_metrics.npz', allow_pickle=True) as f:
 
 
 
-with np.load('summaries/MR_association_metrics_heightbins.npz', allow_pickle=True) as f:
-    MR_IC1= f['MR_IC1']; MR_PC1= f['MR_PC1']; MR_PV1= f['MR_PV1']; 
-    MR_IC2= f['MR_IC2']; MR_PC2= f['MR_PC2']; MR_PV2= f['MR_PV2']; 
-    MR_IC3= f['MR_IC3']; MR_PC3= f['MR_PC3']; MR_PV3= f['MR_PV3']
-    MR_IC4= f['MR_IC4']; MR_PC4= f['MR_PC4']; MR_PV4= f['MR_PV4']; 
-    MR_IC5= f['MR_IC5']; MR_PC5= f['MR_PC5']; MR_PV5= f['MR_PV5']; 
-    MR_IC6= f['MR_IC6']; MR_PC6= f['MR_PC6']; MR_PV6= f['MR_PV6']; 
-    MR_IC7= f['MR_IC7']; MR_PC7= f['MR_PC7']; MR_PV7= f['MR_PV7']; 
-    MR_IC8= f['MR_IC8']; MR_PC8= f['MR_PC8']; MR_PV8= f['MR_PV8']
-    MR_IC9= f['MR_IC9']; MR_PC9= f['MR_PC9']; MR_PV9= f['MR_PV9']
-    MR_IC10= f['MR_IC10']; MR_PC10= f['MR_PC10']; MR_PV10= f['MR_PV10']
-    MR_IC11= f['MR_IC11']; MR_PC11= f['MR_PC11']; MR_PV11= f['MR_PV11']
-    MR_IC12= f['MR_IC12']; MR_PC12= f['MR_PC12']; MR_PV12= f['MR_PV12']
-    MR_IC13= f['MR_IC13']; MR_PC13= f['MR_PC13']; MR_PV13= f['MR_PV13']
-    MR_IC14= f['MR_IC14']; MR_PC14= f['MR_PC14']; MR_PV14= f['MR_PV14']
+# with np.load('summaries/MR_association_metrics_heightbins.npz', allow_pickle=True) as f:
+#     MR_IC1= f['MR_IC1']; MR_PC1= f['MR_PC1']; MR_PV1= f['MR_PV1']; 
+#     MR_IC2= f['MR_IC2']; MR_PC2= f['MR_PC2']; MR_PV2= f['MR_PV2']; 
+#     MR_IC3= f['MR_IC3']; MR_PC3= f['MR_PC3']; MR_PV3= f['MR_PV3']
+#     MR_IC4= f['MR_IC4']; MR_PC4= f['MR_PC4']; MR_PV4= f['MR_PV4']; 
+#     MR_IC5= f['MR_IC5']; MR_PC5= f['MR_PC5']; MR_PV5= f['MR_PV5']; 
+#     MR_IC6= f['MR_IC6']; MR_PC6= f['MR_PC6']; MR_PV6= f['MR_PV6']; 
+#     MR_IC7= f['MR_IC7']; MR_PC7= f['MR_PC7']; MR_PV7= f['MR_PV7']; 
+#     MR_IC8= f['MR_IC8']; MR_PC8= f['MR_PC8']; MR_PV8= f['MR_PV8']
+#     MR_IC9= f['MR_IC9']; MR_PC9= f['MR_PC9']; MR_PV9= f['MR_PV9']
+#     MR_IC10= f['MR_IC10']; MR_PC10= f['MR_PC10']; MR_PV10= f['MR_PV10']
+#     MR_IC11= f['MR_IC11']; MR_PC11= f['MR_PC11']; MR_PV11= f['MR_PV11']
+#     MR_IC12= f['MR_IC12']; MR_PC12= f['MR_PC12']; MR_PV12= f['MR_PV12']
+#     MR_IC13= f['MR_IC13']; MR_PC13= f['MR_PC13']; MR_PV13= f['MR_PV13']
+#     MR_IC14= f['MR_IC14']; MR_PC14= f['MR_PC14']; MR_PV14= f['MR_PV14']
 
 
-MR_IC1 = np.array(MR_IC1).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC2 = np.array(MR_IC2).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC3 = np.array(MR_IC3).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC4 = np.array(MR_IC4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
-MR_IC5 = np.array(MR_IC5).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC6 = np.array(MR_IC6).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC7 = np.array(MR_IC7).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC8 = np.array(MR_IC8).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC9 = np.array(MR_IC9).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC10 = np.array(MR_IC10).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC11 = np.array(MR_IC11).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC12 = np.array(MR_IC12).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC13 = np.array(MR_IC13).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_IC14 = np.array(MR_IC14).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC1 = np.array(MR_IC1).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC2 = np.array(MR_IC2).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC3 = np.array(MR_IC3).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC4 = np.array(MR_IC4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
+# MR_IC5 = np.array(MR_IC5).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC6 = np.array(MR_IC6).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC7 = np.array(MR_IC7).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC8 = np.array(MR_IC8).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC9 = np.array(MR_IC9).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC10 = np.array(MR_IC10).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC11 = np.array(MR_IC11).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC12 = np.array(MR_IC12).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC13 = np.array(MR_IC13).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_IC14 = np.array(MR_IC14).reshape(len(times)-1,len(MRbudget_reaches_redo))
 
 
-MR_PC1 = np.array(MR_PC1).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC2 = np.array(MR_PC2).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC3 = np.array(MR_PC3).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC4 = np.array(MR_PC4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
-MR_PC5 = np.array(MR_PC5).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC6 = np.array(MR_PC6).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC7 = np.array(MR_PC7).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC8 = np.array(MR_PC8).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC9 = np.array(MR_PC9).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC10 = np.array(MR_PC10).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC11 = np.array(MR_PC11).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC12 = np.array(MR_PC12).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC13 = np.array(MR_PC13).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PC14 = np.array(MR_PC14).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC1 = np.array(MR_PC1).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC2 = np.array(MR_PC2).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC3 = np.array(MR_PC3).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC4 = np.array(MR_PC4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
+# MR_PC5 = np.array(MR_PC5).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC6 = np.array(MR_PC6).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC7 = np.array(MR_PC7).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC8 = np.array(MR_PC8).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC9 = np.array(MR_PC9).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC10 = np.array(MR_PC10).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC11 = np.array(MR_PC11).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC12 = np.array(MR_PC12).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC13 = np.array(MR_PC13).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PC14 = np.array(MR_PC14).reshape(len(times)-1,len(MRbudget_reaches_redo))
 
 
-MR_PV1 = np.array(MR_PV1).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV2 = np.array(MR_PV2).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV3 = np.array(MR_PV3).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV4 = np.array(MR_PV4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
-MR_PV5 = np.array(MR_PV5).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV6 = np.array(MR_PV6).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV7 = np.array(MR_PV7).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV8 = np.array(MR_PV8).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV9 = np.array(MR_PV9).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV10 = np.array(MR_PV10).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV11 = np.array(MR_PV11).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV12 = np.array(MR_PV12).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV13 = np.array(MR_PV13).reshape(len(times)-1,len(MRbudget_reaches_redo))
-MR_PV14 = np.array(MR_PV14).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV1 = np.array(MR_PV1).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV2 = np.array(MR_PV2).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV3 = np.array(MR_PV3).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV4 = np.array(MR_PV4).reshape(len(times)-1,len(MRbudget_reaches_redo)) 
+# MR_PV5 = np.array(MR_PV5).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV6 = np.array(MR_PV6).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV7 = np.array(MR_PV7).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV8 = np.array(MR_PV8).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV9 = np.array(MR_PV9).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV10 = np.array(MR_PV10).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV11 = np.array(MR_PV11).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV12 = np.array(MR_PV12).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV13 = np.array(MR_PV13).reshape(len(times)-1,len(MRbudget_reaches_redo))
+# MR_PV14 = np.array(MR_PV14).reshape(len(times)-1,len(MRbudget_reaches_redo))
 
 
 
@@ -659,69 +1088,78 @@ MR_PV14 = np.array(MR_PV14).reshape(len(times)-1,len(MRbudget_reaches_redo))
 # np.savez('summaries/LR_association_metrics_heightbins.npz', LR_IC1 = LR_IC1, LR_PC1 = LR_PC1, LR_PV1=LR_PV1, LR_IC2=LR_IC2, LR_PC2=LR_PC2, LR_PV2=LR_PV2, LR_IC3=LR_IC3, LR_PC3=LR_PC3, LR_PV3=LR_PV3, LR_IC4=LR_IC4, LR_PC4=LR_PC4, LR_PV4=LR_PV4, LR_IC5=LR_IC5, LR_PC5=LR_PC5, LR_PV5=LR_PV5, LR_IC6=LR_IC6, LR_PC6=LR_PC6, LR_PV6=LR_PV6, LR_IC7=LR_IC7, LR_PC7=LR_PC7, LR_PV7=LR_PV7, LR_IC8=LR_IC8, LR_PC8=LR_PC8, LR_PV8=LR_PV8, LR_IC9=LR_IC9, LR_PC9=LR_PC9, LR_PV9=LR_PV9,LR_IC10=LR_IC10, LR_PC10=LR_PC10, LR_PV10=LR_PV10,LR_IC11=LR_IC11, LR_PC11=LR_PC11, LR_PV11=LR_PV11, LR_IC12=LR_IC12, LR_PC12=LR_PC12, LR_PV12=LR_PV12,LR_IC13=LR_IC13, LR_PC13=LR_PC13, LR_PV13=LR_PV13,LR_IC14=LR_IC14, LR_PC14=LR_PC14, LR_PV14=LR_PV14)
 
 
-with np.load('summaries/LR_association_metrics_heightbins.npz', allow_pickle=True) as f:
-    LR_IC1= f['LR_IC1']; LR_PC1= f['LR_PC1']; LR_PV1= f['LR_PV1']; 
-    LR_IC2= f['LR_IC2']; LR_PC2= f['LR_PC2']; LR_PV2= f['LR_PV2']; 
-    LR_IC3= f['LR_IC3']; LR_PC3= f['LR_PC3']; LR_PV3= f['LR_PV3']
-    LR_IC4= f['LR_IC4']; LR_PC4= f['LR_PC4']; LR_PV4= f['LR_PV4']; 
-    LR_IC5= f['LR_IC5']; LR_PC5= f['LR_PC5']; LR_PV5= f['LR_PV5']; 
-    LR_IC6= f['LR_IC6']; LR_PC6= f['LR_PC6']; LR_PV6= f['LR_PV6']; 
-    LR_IC7= f['LR_IC7']; LR_PC7= f['LR_PC7']; LR_PV7= f['LR_PV7']; 
-    LR_IC8= f['LR_IC8']; LR_PC8= f['LR_PC8']; LR_PV8= f['LR_PV8']
-    LR_IC9= f['LR_IC9']; LR_PC9= f['LR_PC9']; LR_PV9= f['LR_PV9']
-    LR_IC10= f['LR_IC10']; LR_PC10= f['LR_PC10']; LR_PV10= f['LR_PV10']
-    LR_IC11= f['LR_IC11']; LR_PC11= f['LR_PC11']; LR_PV11= f['LR_PV11']
-    LR_IC12= f['LR_IC12']; LR_PC12= f['LR_PC12']; LR_PV12= f['LR_PV12']
-    LR_IC13= f['LR_IC13']; LR_PC13= f['LR_PC13']; LR_PV13= f['LR_PV13']
-    LR_IC14= f['LR_IC14']; LR_PC14= f['LR_PC14']; LR_PV14= f['LR_PV14']
+# with np.load('summaries/LR_association_metrics_heightbins.npz', allow_pickle=True) as f:
+#     LR_IC1= f['LR_IC1']; LR_PC1= f['LR_PC1']; LR_PV1= f['LR_PV1']; 
+#     LR_IC2= f['LR_IC2']; LR_PC2= f['LR_PC2']; LR_PV2= f['LR_PV2']; 
+#     LR_IC3= f['LR_IC3']; LR_PC3= f['LR_PC3']; LR_PV3= f['LR_PV3']
+#     LR_IC4= f['LR_IC4']; LR_PC4= f['LR_PC4']; LR_PV4= f['LR_PV4']; 
+#     LR_IC5= f['LR_IC5']; LR_PC5= f['LR_PC5']; LR_PV5= f['LR_PV5']; 
+#     LR_IC6= f['LR_IC6']; LR_PC6= f['LR_PC6']; LR_PV6= f['LR_PV6']; 
+#     LR_IC7= f['LR_IC7']; LR_PC7= f['LR_PC7']; LR_PV7= f['LR_PV7']; 
+#     LR_IC8= f['LR_IC8']; LR_PC8= f['LR_PC8']; LR_PV8= f['LR_PV8']
+#     LR_IC9= f['LR_IC9']; LR_PC9= f['LR_PC9']; LR_PV9= f['LR_PV9']
+#     LR_IC10= f['LR_IC10']; LR_PC10= f['LR_PC10']; LR_PV10= f['LR_PV10']
+#     LR_IC11= f['LR_IC11']; LR_PC11= f['LR_PC11']; LR_PV11= f['LR_PV11']
+#     LR_IC12= f['LR_IC12']; LR_PC12= f['LR_PC12']; LR_PV12= f['LR_PV12']
+#     LR_IC13= f['LR_IC13']; LR_PC13= f['LR_PC13']; LR_PV13= f['LR_PV13']
+#     LR_IC14= f['LR_IC14']; LR_PC14= f['LR_PC14']; LR_PV14= f['LR_PV14']
 
 
-LR_IC1 = np.array(LR_IC1).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC2 = np.array(LR_IC2).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC3 = np.array(LR_IC3).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC4 = np.array(LR_IC4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
-LR_IC5 = np.array(LR_IC5).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC6 = np.array(LR_IC6).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC7 = np.array(LR_IC7).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC8 = np.array(LR_IC8).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC9 = np.array(LR_IC9).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC10 = np.array(LR_IC10).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC11 = np.array(LR_IC11).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC12 = np.array(LR_IC12).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC13 = np.array(LR_IC13).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_IC14 = np.array(LR_IC14).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC1 = np.array(LR_IC1).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC2 = np.array(LR_IC2).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC3 = np.array(LR_IC3).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC4 = np.array(LR_IC4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
+# LR_IC5 = np.array(LR_IC5).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC6 = np.array(LR_IC6).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC7 = np.array(LR_IC7).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC8 = np.array(LR_IC8).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC9 = np.array(LR_IC9).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC10 = np.array(LR_IC10).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC11 = np.array(LR_IC11).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC12 = np.array(LR_IC12).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC13 = np.array(LR_IC13).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_IC14 = np.array(LR_IC14).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
 
-LR_PC1 = np.array(LR_PC1).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC2 = np.array(LR_PC2).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC3 = np.array(LR_PC3).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC4 = np.array(LR_PC4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
-LR_PC5 = np.array(LR_PC5).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC6 = np.array(LR_PC6).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC7 = np.array(LR_PC7).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC8 = np.array(LR_PC8).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC9 = np.array(LR_PC9).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC10 = np.array(LR_PC10).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC11 = np.array(LR_PC11).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC12 = np.array(LR_PC12).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC13 = np.array(LR_PC13).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PC14 = np.array(LR_PC14).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC1 = np.array(LR_PC1).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC2 = np.array(LR_PC2).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC3 = np.array(LR_PC3).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC4 = np.array(LR_PC4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
+# LR_PC5 = np.array(LR_PC5).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC6 = np.array(LR_PC6).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC7 = np.array(LR_PC7).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC8 = np.array(LR_PC8).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC9 = np.array(LR_PC9).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC10 = np.array(LR_PC10).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC11 = np.array(LR_PC11).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC12 = np.array(LR_PC12).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC13 = np.array(LR_PC13).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PC14 = np.array(LR_PC14).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
 
-LR_PV1 = np.array(LR_PV1).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV2 = np.array(LR_PV2).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV3 = np.array(LR_PV3).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV4 = np.array(LR_PV4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
-LR_PV5 = np.array(LR_PV5).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV6 = np.array(LR_PV6).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV7 = np.array(LR_PV7).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV8 = np.array(LR_PV8).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV9 = np.array(LR_PV9).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV10 = np.array(LR_PV10).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV11 = np.array(LR_PV11).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV12 = np.array(LR_PV12).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV13 = np.array(LR_PV13).reshape(len(times)-1,len(LRbudget_reaches_redo))
-LR_PV14 = np.array(LR_PV14).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV1 = np.array(LR_PV1).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV2 = np.array(LR_PV2).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV3 = np.array(LR_PV3).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV4 = np.array(LR_PV4).reshape(len(times)-1,len(LRbudget_reaches_redo)) 
+# LR_PV5 = np.array(LR_PV5).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV6 = np.array(LR_PV6).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV7 = np.array(LR_PV7).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV8 = np.array(LR_PV8).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV9 = np.array(LR_PV9).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV10 = np.array(LR_PV10).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV11 = np.array(LR_PV11).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV12 = np.array(LR_PV12).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV13 = np.array(LR_PV13).reshape(len(times)-1,len(LRbudget_reaches_redo))
+# LR_PV14 = np.array(LR_PV14).reshape(len(times)-1,len(LRbudget_reaches_redo))
+
+
+# ## spatial averages
+
+# imMR = np.vstack((np.nanmean(MR_PC1,axis=0),np.nanmean(MR_PC2,axis=0),np.nanmean(MR_PC3,axis=0),np.nanmean(MR_PC4,axis=0),np.nanmean(MR_PC5,axis=0),np.nanmean(MR_PC6,axis=0),np.nanmean(MR_PC7,axis=0),np.nanmean(MR_PC8,axis=0),np.nanmean(MR_PC9,axis=0),np.nanmean(MR_PC10,axis=0),np.nanmean(MR_PC11,axis=0),np.nanmean(MR_PC12,axis=0),np.nanmean(MR_PC13,axis=0),np.nanmean(MR_PC14,axis=0)))
+
+# imLR = np.vstack((np.nanmean(LR_PC1,axis=1),np.nanmean(LR_PC2,axis=1),np.nanmean(LR_PC3,axis=1),np.nanmean(LR_PC4,axis=1),np.nanmean(LR_PC5,axis=1),np.nanmean(LR_PC6,axis=1),np.nanmean(LR_PC7,axis=1),np.nanmean(LR_PC8,axis=1),np.nanmean(LR_PC9,axis=1),np.nanmean(LR_PC10,axis=1),np.nanmean(LR_PC11,axis=1),np.nanmean(LR_PC12,axis=1),np.nanmean(LR_PC13,axis=1),np.nanmean(LR_PC14,axis=1)))
+
+
 
 
 
@@ -734,78 +1172,78 @@ LR_PV14 = np.array(LR_PV14).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
 # imLR = np.vstack((np.nanmean(LR_PV1,axis=1),np.nanmean(LR_PV2,axis=1),np.nanmean(LR_PV3,axis=1),np.nanmean(LR_PV4,axis=1),np.nanmean(LR_PV5,axis=1),np.nanmean(LR_PV6,axis=1),np.nanmean(LR_PV7,axis=1),np.nanmean(LR_PV8,axis=1),np.nanmean(LR_PV9,axis=1),np.nanmean(LR_PV10,axis=1),np.nanmean(LR_PV11,axis=1),np.nanmean(LR_PV12,axis=1),np.nanmean(LR_PV13,axis=1),np.nanmean(LR_PV14,axis=1)))
 
-imMR = np.vstack((np.nanmean(MR_PC1,axis=1),np.nanmean(MR_PC2,axis=1),np.nanmean(MR_PC3,axis=1),np.nanmean(MR_PC4,axis=1),np.nanmean(MR_PC5,axis=1),np.nanmean(MR_PC6,axis=1),np.nanmean(MR_PC7,axis=1),np.nanmean(MR_PC8,axis=1),np.nanmean(MR_PC9,axis=1),np.nanmean(MR_PC10,axis=1),np.nanmean(MR_PC11,axis=1),np.nanmean(MR_PC12,axis=1),np.nanmean(MR_PC13,axis=1),np.nanmean(MR_PC14,axis=1)))
+# imMR = np.vstack((np.nanmean(MR_PC1,axis=1),np.nanmean(MR_PC2,axis=1),np.nanmean(MR_PC3,axis=1),np.nanmean(MR_PC4,axis=1),np.nanmean(MR_PC5,axis=1),np.nanmean(MR_PC6,axis=1),np.nanmean(MR_PC7,axis=1),np.nanmean(MR_PC8,axis=1),np.nanmean(MR_PC9,axis=1),np.nanmean(MR_PC10,axis=1),np.nanmean(MR_PC11,axis=1),np.nanmean(MR_PC12,axis=1),np.nanmean(MR_PC13,axis=1),np.nanmean(MR_PC14,axis=1)))
 
-imLR = np.vstack((np.nanmean(LR_PC1,axis=1),np.nanmean(LR_PC2,axis=1),np.nanmean(LR_PC3,axis=1),np.nanmean(LR_PC4,axis=1),np.nanmean(LR_PC5,axis=1),np.nanmean(LR_PC6,axis=1),np.nanmean(LR_PC7,axis=1),np.nanmean(LR_PC8,axis=1),np.nanmean(LR_PC9,axis=1),np.nanmean(LR_PC10,axis=1),np.nanmean(LR_PC11,axis=1),np.nanmean(LR_PC12,axis=1),np.nanmean(LR_PC13,axis=1),np.nanmean(LR_PC14,axis=1)))
-
-
-hght = np.arange(0.5,14.5,1)
-
-sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
-
-sed_load = sed_load[['Day',
-'Daily Discharge (m3/s)',
-'Total sediment discharge (tonnes)',
-'Ave fraction fines (based on two turbidimeters)']]
-
-dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
-dt_sed = np.array(dt_sed)
-
-ind = np.argsort(dt_sed)
-
-t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
-t =  np.array([float(d.strftime('%s')) for d in dt])
-
-# O_MR = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
-OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
-
-OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
+# imLR = np.vstack((np.nanmean(LR_PC1,axis=1),np.nanmean(LR_PC2,axis=1),np.nanmean(LR_PC3,axis=1),np.nanmean(LR_PC4,axis=1),np.nanmean(LR_PC5,axis=1),np.nanmean(LR_PC6,axis=1),np.nanmean(LR_PC7,axis=1),np.nanmean(LR_PC8,axis=1),np.nanmean(LR_PC9,axis=1),np.nanmean(LR_PC10,axis=1),np.nanmean(LR_PC11,axis=1),np.nanmean(LR_PC12,axis=1),np.nanmean(LR_PC13,axis=1),np.nanmean(LR_PC14,axis=1)))
 
 
-########################################
-plt.figure(figsize=(12,12))
-plt.subplots_adjust(wspace=0.3, hspace=0.3)
+# hght = np.arange(0.5,14.5,1)
 
-plt.subplot(221)
-plt.plot(dt[1:],np.nanmean(MR_PC,axis=1),'k-',label='MR')
-plt.plot(dt[1:],np.nanmean(LR_PC,axis=1),'r--',label='LR')
-plt.legend()
-plt.ylabel(r"Mean autocorrelation coefficient")
-plt.title('a) ', loc='left'); 
+# sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
 
-plt.subplot(222)
-x=np.nanmax(imMR,axis=1)
-x[np.isnan(x)]=0.0
-plt.plot(x,hght, color='k', linestyle='-',label='MR')
+# sed_load = sed_load[['Day',
+# 'Daily Discharge (m3/s)',
+# 'Total sediment discharge (tonnes)',
+# 'Ave fraction fines (based on two turbidimeters)']]
 
-x=np.nanmax(imLR,axis=1)
-x[np.isnan(x)]=0.0
-plt.plot(x,hght, color='r', linestyle='--',label='LR')
-plt.ylim(hght[0],hght[-1])
-plt.ylabel("Height (m)"); plt.xlabel(r"Mean autocorrelation coefficient")
-plt.title('b) ', loc='left'); 
+# dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
+# dt_sed = np.array(dt_sed)
 
-plt.subplot(223)
-df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Daily Discharge (m3/s)'].mean()
-plt.plot(dt,OQ,'ro',label='Aerial imagery')
-df_mnth_Q.plot(label='Monthly mean\n discharge')
-plt.ylabel(r"Water discharge (m/s$^3$)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
-plt.xlabel('')
-plt.legend()
-plt.title('c) ', loc='left');
+# ind = np.argsort(dt_sed)
 
-plt.subplot(224)
-df_mnth_L = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Total sediment discharge (tonnes)'].mean()
-plt.plot(dt,OS,'ro',label='Aerial imagery')
-df_mnth_L.plot(label='Monthly mean\n sediment load')
-plt.ylabel("Sediment load (tonnes)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
-plt.xlabel('')
-plt.legend(loc=2)
-plt.title('d)', loc='left');
+# t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
+# t =  np.array([float(d.strftime('%s')) for d in dt])
 
-# plt.show()
-plt.savefig("summaries/LR_MR_wood_persistence_perHeight_bin.png", dpi=300, bbox_inches="tight")
-plt.close()
+# # O_MR = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+# OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+
+# OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
+
+
+# ########################################
+# plt.figure(figsize=(12,12))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+# plt.subplot(221)
+# plt.plot(dt[1:],np.nanmean(MR_PC,axis=1),'k-',label='MR')
+# plt.plot(dt[1:],np.nanmean(LR_PC,axis=1),'r--',label='LR')
+# plt.legend()
+# plt.ylabel(r"Mean autocorrelation coefficient")
+# plt.title('a) ', loc='left'); 
+
+# plt.subplot(222)
+# x=np.nanmax(imMR,axis=1)
+# x[np.isnan(x)]=0.0
+# plt.plot(x,hght, color='k', linestyle='-',label='MR')
+
+# x=np.nanmax(imLR,axis=1)
+# x[np.isnan(x)]=0.0
+# plt.plot(x,hght, color='r', linestyle='--',label='LR')
+# plt.ylim(hght[0],hght[-1])
+# plt.ylabel("Height (m)"); plt.xlabel(r"Mean autocorrelation coefficient")
+# plt.title('b) ', loc='left'); 
+
+# plt.subplot(223)
+# df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Daily Discharge (m3/s)'].mean()
+# plt.plot(dt,OQ,'ro',label='Aerial imagery')
+# df_mnth_Q.plot(label='Monthly mean\n discharge')
+# plt.ylabel(r"Water discharge (m/s$^3$)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+# plt.xlabel('')
+# plt.legend()
+# plt.title('c) ', loc='left');
+
+# plt.subplot(224)
+# df_mnth_L = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Total sediment discharge (tonnes)'].mean()
+# plt.plot(dt,OS,'ro',label='Aerial imagery')
+# df_mnth_L.plot(label='Monthly mean\n sediment load')
+# plt.ylabel("Sediment load (tonnes)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+# plt.xlabel('')
+# plt.legend(loc=2)
+# plt.title('d)', loc='left');
+
+# # plt.show()
+# plt.savefig("summaries/LR_MR_wood_persistence_perHeight_bin.png", dpi=300, bbox_inches="tight")
+# plt.close()
 
 
 ######################################################
@@ -825,9 +1263,13 @@ with np.load('../results/LR_spatial_metrics.npz', allow_pickle=True) as f:
 F=[]
 for k in LR_FTEST:
     try:
-        F.append(k[4][1])
-    except: 
-        F.append(k[6][1])
+        F.append(k[1])
+    except:
+        F.append(np.ones(40)*np.nan)
+    # try:
+    #     F.append(k[1]) #[4][1])
+    # except: 
+    #     F.append(k[6][1])
 
 LR_DISPERSED = np.array(LR_DISPERSED).reshape(len(times),len(LRbudget_reaches_redo))
 LR_CLUSTERED = np.array(LR_CLUSTERED).reshape(len(times),len(LRbudget_reaches_redo))
@@ -892,52 +1334,132 @@ MR_GIR = np.array(MR_GIR).reshape(len(times),len(MRbudget_reaches_redo))
 # MR_BRarr_c = MR_BRarr/A_MR
 # LR_BRarr_c = LR_BRarr/A_LR
 
+dt = np.array(dt)
 
-fig, ax = plt.subplots(nrows=1, ncols=2)
-fig.set_size_inches(12,6)
-plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+
+fig, ax = plt.subplots(nrows=2, ncols=3)
+fig.set_size_inches(16,8)
+plt.subplots_adjust(wspace=0.4, hspace=0.4)
 
 prop_disp = np.nansum(MR_DISPERSED,axis=1)/len(MRbudget_reaches_redo)
 y = np.nanmean(MR_FIO,axis=-1)
 y2 = np.nanmean(MR_FIR,axis=-1)
 
-ax[0].plot(dt, y, 'k:', lw=2, label='Observed')
-ax[0].plot(dt, y2, 'k--', label='Random')
-ax[0].set_ylabel('Reach-averaged F-test statistic')
-ax[0].set_title('a) MR', loc='left');
-# ax[1].legend()
+ax[0][0].plot(dt, y, 'k:', lw=3, label='Observed')
+ax[0][0].plot(dt, y2, 'm--', label='Random')
+ax[0][0].set_ylabel('Reach-averaged F-test statistic', color='m')
+ax[0][0].set_title('a) MR', loc='left');
+ax[0][0].legend(loc=3)
+ax[0][0].set_ylim(0,.65)
 
-ax20 = ax[0].twinx()
+ax20 = ax[0][0].twinx()
 # ax2.plot(dt, prop_disp,'b')
 ind = np.where(y>y2)[0]
 ax20.plot(dt[ind], prop_disp[ind],'b-o')
 ind = np.where(y<y2)[0]
-ax20.plot(dt[ind], prop_disp[ind],'ro')
+ax20.plot(dt[ind], prop_disp[ind],'go')
 ax20.set_ylabel('Proportion of reach dispersed', color='b')
-ax20.set_ylim(.3,.8)
+ax20.set_ylim(0,.75)
 
 prop_disp = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
 y = np.nanmean(LR_FIO,axis=-1)
 y2 = np.nanmean(LR_FIR,axis=-1)
 
-ax[1].plot(dt, y, 'k:', lw=2, label='Observed')
-ax[1].plot(dt, y2, 'k--', label='Random')
-ax[1].set_ylabel('Reach-averaged F-test statistic')
-ax[1].set_title('b) LR', loc='left');
-# ax[1].legend()
+ax[1][0].plot(dt, y, 'r:', lw=3, label='Observed')
+ax[1][0].plot(dt, y2, 'm--', label='Random')
+ax[1][0].set_ylabel('Reach-averaged F-test statistic', color='m')
+ax[1][0].set_title('b) LR', loc='left');
+ax[1][0].legend(loc=3)
+ax[1][0].set_ylim(0,.65)
 
-ax2 = ax[1].twinx()
+ax2 = ax[1][0].twinx()
 # ax2.plot(dt, prop_disp,'b')
 ind = np.where(y>y2)[0]
 ax2.plot(dt[ind], prop_disp[ind],'b-o')
 ind = np.where(y<y2)[0]
-ax2.plot(dt[ind], prop_disp[ind],'ro')
+ax2.plot(dt[ind], prop_disp[ind],'go')
 ax2.set_ylabel('Proportion of reach dispersed', color='b')
-ax2.set_ylim(.3,.8)
-# plt.show()
-plt.savefig("summaries/dispersion_stats.png", dpi=300, bbox_inches="tight")
+ax2.set_ylim(0,.75)
 
+##### dfispersion versus persistence
+ax[0][1].plot(np.nanmedian(MR_PC2,axis=0), np.nanmedian(MR_FIO,axis=0),'ko', label='MR')
+ax[0][1].plot(np.nanmedian(LR_PC2,axis=0), np.nanmedian(LR_FIO,axis=0),'rs', label='LR')
+ax[0][1].set_ylabel('Dispersion; median F-score (-)', color='k')
+ax[0][1].set_xlabel('Persistence; median autocorrelation (-)', color='k')
+ax[0][1].set_title('c)', loc='left');
+ax[0][1].legend(loc=3)
+ax[0][1].set_ylim(0,1.03)
+ax[0][1].set_xlim(0,1.03)
+
+##### dfispersion versus width
+# x = np.nanmax(MR_FIO,axis=0)
+x = np.nanmedian(MR_FIO,axis=0)
+y = MR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][1].plot(y, xi,'ko', label='MR')
+
+# x = np.nanmax(LR_FIO,axis=0)
+x = np.nanmedian(LR_FIO,axis=0)
+y = LR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][1].plot(y, xi,'rs', label='LR')
+
+ax[1][1].set_ylabel('Dispersion; median F-score (-)', color='k')
+ax[1][1].set_xlabel('Channel width (m)', color='k')
+ax[1][1].set_title('d)', loc='left');
+ax[1][1].legend(loc=4)
+ax[1][1].set_ylim(0,1.03)
+# ax[1][1].set_xlim(0,300)
+
+##### dfispersion versus persistence
+ax[0][2].plot(np.nanmax(MR_PC2,axis=0), np.nanmax(MR_FIO,axis=0),'ko', label='MR')
+ax[0][2].plot(np.nanmax(LR_PC2,axis=0), np.nanmax(LR_FIO,axis=0),'rs', label='LR')
+ax[0][2].set_ylabel('Dispersion; maximum F-score (-)', color='k')
+ax[0][2].set_xlabel('Persistence; maximum autocorrelation (-)', color='k')
+ax[0][2].set_title('e)', loc='left');
+ax[0][2].legend(loc=3)
+ax[0][2].set_ylim(0,1.03)
+ax[0][2].set_xlim(0,1.03)
+
+##### dfispersion versus width
+x = np.nanmax(MR_FIO,axis=0)
+# x = np.nanmedian(MR_FIO,axis=0)
+y = MR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][2].plot(y, xi,'ko', label='MR')
+
+x = np.nanmax(LR_FIO,axis=0)
+# x = np.nanmedian(LR_FIO,axis=0)
+y = LR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][2].plot(y, xi,'rs', label='LR')
+
+ax[1][2].set_ylabel('Dispersion; maximum F-score (-)', color='k')
+ax[1][2].set_xlabel('Channel width (m)', color='k')
+ax[1][2].set_title('f)', loc='left');
+ax[1][2].legend(loc=4)
+ax[1][1].set_ylim(0,1.03)
+# ax[1][1].set_xlim(0,300)
+
+# plt.show()
+
+plt.savefig("summaries/dispersion_stats.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+
+
+
+
+# plt.plot(y,xi,'ko', label='MR')
+
+# plt.plot(y,xi,'rs', label='LR')
+# plt.title('c) ', loc='left'); 
+# plt.legend()
+# plt.ylabel("Maximum\nautocorrelation (-)"); plt.xlabel("Maximum active\nchannel width (m)");
+# plt.ylim(0,.4)
+
 
 
 
@@ -1178,49 +1700,49 @@ np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, M
 # plt.imshow(np.flipud(LR_IC1), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0m<= h <0.5m")
 # plt.gca().invert_yaxis()
-# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('a) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(422)
 # plt.imshow(np.flipud(LR_IC2), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0.5m<= h <1.5m")
 # plt.gca().invert_yaxis()
-# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('b) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(423)
 # plt.imshow(np.flipud(LR_IC3), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 1.5m<= h <2.5m")
 # plt.gca().invert_yaxis()
-# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('c) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(424)
 # plt.imshow(np.flipud(LR_IC4), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 2.5m<= h <3.5m")
 # plt.gca().invert_yaxis()
-# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('d) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(425)
 # plt.imshow(np.flipud(LR_IC5), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 3.5m<= h <4.5m")
 # plt.gca().invert_yaxis()
-# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('e) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(426)
 # plt.imshow(np.flipud(LR_IC6), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 4.5m<= h <5.5m")
 # plt.gca().invert_yaxis()
-# plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('f) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(427)
 # plt.imshow(np.flipud(LR_IC7), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 5.5m<= h <6.5m")
 # plt.gca().invert_yaxis()
-# plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('g) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(428)
 # plt.imshow(np.flipud(LR_IC8), cmap='inferno', extent=[0, LR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 6.5m<= h <8m")
 # plt.gca().invert_yaxis()
-# plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('h) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 
 # # plt.show()
@@ -1237,49 +1759,49 @@ np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, M
 # plt.imshow(np.flipud(MR_IC1), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0m<= h <0.5m")
 # plt.gca().invert_yaxis()
-# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('a) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(422)
 # plt.imshow(np.flipud(MR_IC2), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 0.5m<= h <1.5m")
 # plt.gca().invert_yaxis()
-# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('b) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(423)
 # plt.imshow(np.flipud(MR_IC3), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 1.5m<= h <2.5m")
 # plt.gca().invert_yaxis()
-# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('c) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(424)
 # plt.imshow(np.flipud(MR_IC4), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 2.5m<= h <3.5m")
 # plt.gca().invert_yaxis()
-# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('d) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(425)
 # plt.imshow(np.flipud(MR_IC5), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 3.5m<= h <4.5m")
 # plt.gca().invert_yaxis()
-# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('e) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(426)
 # plt.imshow(np.flipud(MR_IC6), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 4.5m<= h <5.5m")
 # plt.gca().invert_yaxis()
-# plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('f) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(427)
 # plt.imshow(np.flipud(MR_IC7), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 5.5m<= h <6.5m")
 # plt.gca().invert_yaxis()
-# plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('g) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(428)
 # plt.imshow(np.flipud(MR_IC8), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Intersection coefficient, 6.5m<= h <8m")
 # plt.gca().invert_yaxis()
-# plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('h) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 
 # # plt.show()
@@ -1294,49 +1816,49 @@ np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, M
 # plt.imshow(np.flipud(MR_MC1), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 0m<= h <0.5m")
 # plt.gca().invert_yaxis()
-# plt.title('a) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('a) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(422)
 # plt.imshow(np.flipud(MR_MC2), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 0.5m<= h <1.5m")
 # plt.gca().invert_yaxis()
-# plt.title('b) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('b) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(423)
 # plt.imshow(np.flipud(MR_MC3), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 1.5m<= h <2.5m")
 # plt.gca().invert_yaxis()
-# plt.title('c) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('c) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(424)
 # plt.imshow(np.flipud(MR_MC4), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 2.5m<= h <3.5m")
 # plt.gca().invert_yaxis()
-# plt.title('d) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('d) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(425)
 # plt.imshow(np.flipud(MR_MC5), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 3.5m<= h <4.5m")
 # plt.gca().invert_yaxis()
-# plt.title('e) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('e) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(426)
 # plt.imshow(np.flipud(MR_MC6), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 4.5m<= h <5.5m")
 # plt.gca().invert_yaxis()
-# plt.title('f) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('f) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(427)
 # plt.imshow(np.flipud(MR_MC7), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 5.5m<= h <6.5m")
 # plt.gca().invert_yaxis()
-# plt.title('g) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('g) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 # plt.subplot(428)
 # plt.imshow(np.flipud(MR_MC8), cmap='inferno', extent=[0, MR[-1] , dt[1], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label(r"Co-location coefficient, 6.5m<= h <8m")
 # plt.gca().invert_yaxis()
-# plt.title('h) ', loc='left'); plt.xlabel("Distance downstream (km)"); 
+# plt.title('h) ', loc='left'); plt.xlabel("River kilometer(km)"); 
 
 
 # # plt.show()

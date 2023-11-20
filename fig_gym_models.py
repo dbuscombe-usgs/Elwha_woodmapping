@@ -30,11 +30,11 @@ for file in npz_wood:
     L.append(loss)
     VL.append(val_loss)
 
-plt.subplot(331)
-plt.semilogx(L[0], 'r-', label='Model 1, train')
+plt.subplot(221)
+plt.semilogx(L[0], 'm-', label='Model 1, train')
 plt.plot(L[1], 'g-', label='Model 2, train')
 plt.plot(L[2], 'b-', label='Model 3, train')
-plt.plot(VL[0], 'r--', label='Model 1, val.')
+plt.plot(VL[0], 'm--', label='Model 1, val.')
 plt.plot(VL[1], 'g--', label='Model 2, val.')
 plt.plot(VL[2], 'b--', label='Model 3, val.')
 plt.ylabel("Loss (non-dim.)")
@@ -43,7 +43,7 @@ plt.title('a) Wood',loc='left')
 plt.ylim(0,0.8)
 plt.xlim(0,100)
 plt.xlabel("Training epoch")
-
+plt.legend()
 
 L=[]; VL=[]
 for file in npz_sed:
@@ -53,11 +53,11 @@ for file in npz_sed:
     L.append(loss)
     VL.append(val_loss)
 
-plt.subplot(332)
-plt.semilogx(L[0], 'r-', label='Model 1, train')
+plt.subplot(222)
+plt.semilogx(L[0], 'm-', label='Model 1, train')
 plt.plot(L[1], 'g-', label='Model 2, train')
 plt.plot(L[2], 'b-', label='Model 3, train')
-plt.plot(VL[0], 'r--', label='Model 1, val.')
+plt.plot(VL[0], 'm--', label='Model 1, val.')
 plt.plot(VL[1], 'g--', label='Model 2, val.')
 plt.plot(VL[2], 'b--', label='Model 3, val.')
 plt.ylabel("Loss (non-dim.)")
@@ -77,11 +77,11 @@ for file in npz_water:
     L.append(loss)
     VL.append(val_loss)
 
-plt.subplot(333)
-plt.semilogx(L[0], 'r-', label='Model 1, train')
+plt.subplot(223)
+plt.semilogx(L[0], 'm-', label='Model 1, train')
 plt.plot(L[1], 'g-', label='Model 2, train')
 plt.plot(L[2], 'b-', label='Model 3, train')
-plt.plot(VL[0], 'r--', label='Model 1, val.')
+plt.plot(VL[0], 'm--', label='Model 1, val.')
 plt.plot(VL[1], 'g--', label='Model 2, val.')
 plt.plot(VL[2], 'b--', label='Model 3, val.')
 plt.xlabel("Training epoch")
@@ -99,11 +99,11 @@ for file in npz_veg:
     L.append(loss)
     VL.append(val_loss)
 
-plt.subplot(334)
-plt.semilogx(L[0], 'r-', label='Model 1, train')
+plt.subplot(224)
+plt.semilogx(L[0], 'm-', label='Model 1, train')
 plt.plot(L[1], 'g-', label='Model 2, train')
 plt.plot(L[2], 'b-', label='Model 3, train')
-plt.plot(VL[0], 'r--', label='Model 1, val.')
+plt.plot(VL[0], 'm--', label='Model 1, val.')
 plt.plot(VL[1], 'g--', label='Model 2, val.')
 plt.plot(VL[2], 'b--', label='Model 3, val.')
 plt.xlabel("Training epoch")
@@ -114,6 +114,18 @@ plt.title('d) Other',loc='left')
 plt.ylim(0,0.8)
 plt.xlim(0,100)
 
+# plt.show()
+plt.savefig("model_training_comparison.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+
+npz_all_N = sorted(glob("../gym/v9_all/model_comparison_N/*.npz"))
+
+N = [1999,2999,4382] #999,
+
+N = np.array(N)
+
 L=[]; VL=[]
 for file in npz_all:
     with np.load(file) as f:
@@ -122,53 +134,18 @@ for file in npz_all:
     L.append(loss)
     VL.append(val_loss)
 
-plt.subplot(335)
-plt.semilogx(L[0], 'r-', label='Model 1, train')
-plt.plot(L[1], 'g-', label='Model 2, train')
-plt.plot(L[2], 'b-', label='Model 3, train')
-plt.plot(L[3], 'm-', label='Model 4, train')
-plt.plot(L[4], 'k-', label='Model 5, train')
 
-plt.plot(VL[0], 'r--', label='Model 1, val.')
-plt.plot(VL[1], 'g--', label='Model 2, val.')
-plt.plot(VL[2], 'b--', label='Model 3, val.')
-plt.plot(VL[3], 'm--', label='Model 4, val.')
-plt.plot(VL[4], 'k--', label='Model 5, val.')
-# plt.xlabel("Training epoch")
-plt.ylabel("Loss (non-dim.)")
-plt.title('e) Four-class model',loc='left')
-plt.legend()
-plt.ylim(0,0.8)
-plt.xlim(0,100)
-# plt.text(10,.6,'Four classes')
-plt.xlabel("Training epoch")
-
-
-min_full_L = np.min([np.min(v) for v in L])
-min_full_VL = np.min([np.min(v) for v in VL])
-
-
-npz_all_N = sorted(glob("../gym/v9_all/model_comparison_N/*.npz"))
-N = [999,1999,2999,4382]
-
-N = np.array(N)
-
-L=[]; VL=[]
+fL=[]; fVL=[]
 for file in npz_all_N:
     with np.load(file) as f:
         loss = f['loss']
         val_loss = f['val_loss']
-    L.append(loss)
-    VL.append(val_loss)
+    fL.append(loss)
+    fVL.append(val_loss)
 
 
-plt.subplot(336)
-plt.plot(N, np.hstack(([np.min(v) for v in L], min_full_L)), 'k-o', label='Train')
-plt.plot(N, np.hstack(([np.min(v) for v in VL], min_full_VL)), 'r--s',  label='Validation')         
-plt.ylabel("Mimimum loss (non-dim.)")
-plt.xlabel("Number of labeled training images")
-plt.legend()
-plt.title('f) Four-class model',loc='left')
+min_full_L = np.min([np.min(v) for v in fL])
+min_full_VL = np.min([np.min(v) for v in fVL])
 
 
 csv_all = sorted(glob("../gym/v9_all/model_comparison_N/*per_sample_val.csv")) + glob("../gym/v9_all/*v3*per_sample_val.csv")
@@ -188,21 +165,79 @@ for k in csv_all:
     mcc2.append(pd.read_csv(k).mean()['MatthewsCorrelationCoefficient'])
 
 
-plt.subplot(337)
-plt.plot(N*.7, sorted(miou2), 'k-o', label='mIOU, train')
-plt.plot(N*.3, sorted(miou), 'k--o', label='mIOU, val')
-plt.plot(N*.7, sorted(fwiou2), 'r-s', label='fwIOU, train')
-plt.plot(N*.3, sorted(fwiou), 'r--s', label='fwIOU, val')
-plt.plot(N*.7, sorted(mcc2), 'b-p', label='MCC, train')
-plt.plot(N*.3, sorted(mcc), 'b--p', label='MCC, val')
+from brokenaxes import brokenaxes
+
+
+
+########################################
+# plt.figure(figsize=(8,16))
+# plt.subplots_adjust(wspace=0.3, hspace=0.3)
+
+plt.subplot(111)
+plt.semilogx(L[0], 'm-', label='Model 1, train')
+plt.plot(L[1], 'g-', label='Model 2, train')
+plt.plot(L[2], 'b-', label='Model 3, train')
+plt.plot(L[3], 'c-', label='Model 4, train')
+plt.plot(L[4], '-',color=[.75,.75,.75],  label='Model 5, train')
+
+plt.plot(VL[0], 'm--', label='Model 1, val.')
+plt.plot(VL[1], 'g--', label='Model 2, val.')
+plt.plot(VL[2], 'b--', label='Model 3, val.')
+plt.plot(VL[3], 'c--', label='Model 4, val.')
+plt.plot(VL[4], '--',color=[.75,.75,.75],  label='Model 5, val.')
+# plt.xlabel("Training epoch")
+plt.ylabel("Loss (non-dim.)")
+plt.title('a)',loc='left')
+plt.legend()
+plt.ylim(0,0.6)
+plt.xlim(0,30)
+# plt.text(10,.6,'Four classes')
+plt.xlabel("Training epoch")
+# plt.show()
+plt.savefig("model_training.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+plt.subplot(111)
+bax = brokenaxes( ylims=((0.0875, .1), (.2, .206)), hspace=.1)
+bax.plot(N, np.hstack(([np.min(v) for v in fL[1:]], min_full_L)), '-o', color=[.75,.75,.75], label='Train')
+bax.plot(N, np.hstack(([np.min(v) for v in fVL[1:]], min_full_VL)), 'm--s',  label='Validation')  
+bax.legend()       
+# plt.ylabel("Mimimum loss (non-dim.)")
+# plt.xlabel("Number of labeled training images")
+plt.title('b)',loc='left')
+# plt.show()
+plt.savefig("model_training_A.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+plt.subplot(111)
+# bax = brokenaxes( ylims=((0.0875, .1), (.2, .206)), hspace=.1)
+plt.plot(N, np.hstack(([np.min(v) for v in fL[1:]], min_full_L)), '-o', color=[.75,.75,.75], label='Train')
+plt.plot(N, np.hstack(([np.min(v) for v in fVL[1:]], min_full_VL)), 'm--s',  label='Validation')  
+plt.legend()       
+# plt.ylabel("Mimimum loss (non-dim.)")
+# plt.xlabel("Number of labeled training images")
+plt.title('b)',loc='left')
+# plt.show()
+plt.savefig("model_training_B.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+plt.subplot(111)
+plt.plot(N*.7, sorted(miou2)[1:], '-o', color=[.75,.75,.75], label='mIOU, train')
+plt.plot(N*.3, sorted(miou)[1:], '--o', color=[.75,.75,.75], label='mIOU, val')
+plt.plot(N*.7, sorted(fwiou2)[1:], 'm-s', label='fwIOU, train')
+plt.plot(N*.3, sorted(fwiou)[1:], 'm--s', label='fwIOU, val')
+plt.plot(N*.7, sorted(mcc2)[1:], 'b-p',label='MCC, train')
+plt.plot(N*.3, sorted(mcc)[1:], 'b--p', label='MCC, val')
 
 plt.legend()
 plt.ylabel("Metric (non-dim.)")
 plt.xlabel("Number of labeled training images")
-plt.title('g) Four-class model',loc='left')
+plt.title('c)',loc='left')
 
 # plt.show()
-plt.savefig("model_training_comparison.png", dpi=300, bbox_inches="tight")
+plt.savefig("model_training_N.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 

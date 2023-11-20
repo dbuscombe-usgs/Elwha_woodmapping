@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 from scipy import ndimage
 from skimage.exposure import match_histograms
-
+import pandas as pd 
+import mchmm as mc
 #############################################################
 #############################################################
 #############################################################
@@ -143,6 +144,200 @@ print(im_geotiffs_ds.to_array().shape)
 ### reference image (bright)
 reference = im_geotiffs_ds.sel(time='2016-07-14')
 # reference = im_geotiffs_ds.sel(time='2015-03-03')
+
+
+
+
+###############################
+########### analysis of transition
+
+
+# ## veg, water, sed, wood
+# PM = []; O2M = []; O3M = []
+# ## all - instantanues
+# for counter,g in tqdm(enumerate(LR_bars)):
+#     print("Working on region {}".format(counter))
+#     label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
+
+#     A = []
+#     for x, y in zip(label_c.x, label_c.y):
+#         tmp = label_c[1].sel(x=x, y=y).values
+#         a = mc.MarkovChain().from_data(tmp)
+#         A.append(a)
+
+#     ind = np.where(np.array([len(a.observed_matrix) for a in A])==4)[0]
+#     # np.array(A[ind].n_order_matrix)
+#     PM.append(np.dstack([np.array(A[i].observed_p_matrix) for i in ind]).mean(axis=-1))
+#     O2M.append(np.dstack([np.array(A[i].n_order_matrix(order=2)) for i in ind]).mean(axis=-1))
+#     O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
+
+# np.savez('summaries/LR_transition_matrices.npz', LR_PM = PM, LR_O2M = O2M, LR_O3M = O3M)
+
+# # np.median(PM,axis=0)
+
+with np.load('summaries/LR_transition_matrices.npz', allow_pickle=True) as dat:
+    LR_tpm = dict()
+    for k in dat.keys():
+        LR_tpm[k] = dat[k]
+    del dat
+
+with np.load('summaries/MR_transition_matrices.npz', allow_pickle=True) as dat:
+    MR_tpm = dict()
+    for k in dat.keys():
+        MR_tpm[k] = dat[k]
+    del dat
+
+MR_TPM = []
+for k in MR_tpm['MR_PM']:
+    if np.isnan(k).any():
+        tmp = np.ones((4,4))*np.nan
+        MR_TPM.append(tmp)
+    else:
+        MR_TPM.append(k)
+
+LR_TPM = []
+for k in LR_tpm['LR_PM']:
+    if np.isnan(k).any():
+        tmp = np.ones((4,4))*np.nan
+        LR_TPM.append(tmp)
+    else:
+        LR_TPM.append(k)
+
+
+
+dists = pd.read_csv('br_dists.csv')
+LR = np.hstack((0,np.array(dists['LR'])))
+MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+LR = rescale_array(LR,11,2)
+MR = rescale_array(MR[::-1],12,20)
+
+
+xy = np.array([np.mean(np.mean(g['coordinates'],axis=0),axis=1).flatten() for g in LR_bars])
+x = xy[:,0]
+y = xy[:,1]
+
+
+MR_wood_pers = [p[3,3] for p in MR_tpm['MR_PM']]
+MR_sed_pers = [p[2,2] for p in MR_tpm['MR_PM']]
+MR_veg_pers = [p[0,0] for p in MR_tpm['MR_PM']]
+MR_water_pers = [p[1,1] for p in MR_tpm['MR_PM']]
+MR_veg_encroach = [p[0,1] for p in MR_tpm['MR_PM']]
+MR_veg_growth = [p[0,2] for p in MR_tpm['MR_PM']]
+MR_wood_occl = [p[0,3] for p in MR_tpm['MR_PM']]
+MR_veg_erosion = [p[1,0] for p in MR_tpm['MR_PM']]
+MR_sed_erosion = [p[1,2] for p in MR_tpm['MR_PM']]
+MR_wood_erosion = [p[1,3] for p in MR_tpm['MR_PM']]
+
+plt.plot(MR_wood_pers, MR_sed_pers,'ro')
+plt.plot(MR_wood_pers, MR_veg_pers,'gs')
+plt.plot(MR_wood_pers, MR_water_pers,'bh')
+plt.show()
+
+plt.plot(MR_wood_pers, MR_sed_erosion,'ro')
+plt.plot(MR_wood_pers, MR_wood_erosion,'go')
+plt.plot(MR_wood_pers, MR_veg_erosion,'bo')
+plt.show()
+
+
+
+MR_tmp = np.nanmedian(MR_TPM,axis=0)
+LR_tmp = np.nanmedian(LR_TPM,axis=0)
+
+
+plt.figure(figsize=(12,8))
+plt.subplot(221)
+g = sns.heatmap(MR_tmp, annot = True, cmap ='plasma', vmax=1, vmin=0,
+            linecolor ='black', linewidths = 1, cbar_kws={'label': 'Probability of transition'})
+
+g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+
+plt.subplot(222)
+g = sns.heatmap(LR_tmp, annot = True, cmap ='plasma', vmax=1, vmin=0,
+            linecolor ='black', linewidths = 1, cbar_kws={'label': 'Probability of transition'})
+
+g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+
+
+# plt.show()
+
+plt.savefig("summaries/median_reach_TPM.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+
+plt.figure(figsize=(12,8))
+plt.subplot(221)
+g = sns.heatmap(MR_tmp-LR_tmp, annot = True, cmap ='bwr', vmax=.2, vmin=-.2,
+            linecolor ='black', linewidths = 1, cbar_kws={'label': 'Probability of transition'})
+
+g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+
+# plt.show()
+
+plt.savefig("summaries/median_reach_TPM_diff.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+
+plt.figure(figsize=(12,8))
+plt.subplot(221)
+g = sns.heatmap(np.nanstd(np.dstack(MR_TPM),axis=-1)/np.nanmean(np.dstack(MR_TPM),axis=-1), annot = True, cmap ='bwr', vmin=.3, vmax=1.2,
+            linecolor ='black', linewidths = 1, cbar_kws={'label': 'Spatial variability\n of transition (-)'})
+
+g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+plt.title('a) MR', loc='left'); 
+
+plt.subplot(222)
+g = sns.heatmap(np.nanstd(np.dstack(LR_TPM),axis=-1)/np.nanmean(np.dstack(LR_TPM),axis=-1), annot = True, cmap ='bwr', vmin=.3, vmax=1.2,
+            linecolor ='black', linewidths = 1, cbar_kws={'label': 'Spatial variability\n of transition (-)'})
+
+g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+plt.title('b) LR', loc='left'); 
+
+# plt.show()
+
+plt.savefig("summaries/TPM_spatial_var.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+# from skimage import measure
+# import matplotlib.pyplot as plt
+# from mpl_toolkits.mplot3d import Axes3D
+   
+# dx, dy,dz = np.gradient(np.dstack(MR_TPM))
+# iso_val=0.15
+# # verts, faces, normals, values = measure.marching_cubes(np.dstack(MR_TPM), iso_val, spacing=(0.01, 0.01, 0.01))
+# verts, faces, normals, values = measure.marching_cubes(dy, iso_val, spacing=(0.001, 0.001, 0.001))
+
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# ax.plot_trisurf(verts[:, 0], verts[:,1], faces, verts[:, 2],
+#                 cmap='Spectral', lw=1)
+# plt.show()
+
+
+
+
+
+
+
 
 
 

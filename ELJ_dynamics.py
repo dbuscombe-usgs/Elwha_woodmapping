@@ -42,7 +42,7 @@ times = [
 ]
 
 
-elj_file = '../raw_data/20101208_ELJ_EX/20101208_ELJ_EX.geojson'
+elj_file = '../raw_data/tribe_data/20101208_ELJ_EX/20101208_ELJ_EX.geojson'
 with open(elj_file) as f:
     gj = json.load(f)
 ELJs = gj['features']
@@ -55,7 +55,7 @@ years[years<1] = 2004.0
 x = [f['geometry']['coordinates'][0] for f in ELJs]
 y = [f['geometry']['coordinates'][1] for f in ELJs]
 
-elj_zone = '../raw_data/20101208_ELJ_EX/ELJ_zone.geojson'
+elj_zone = '../raw_data/tribe_data/20101208_ELJ_EX/ELJ_zone.geojson'
 with open(elj_zone) as f:
     gj = json.load(f)
 elj_zone = gj['features'][0]['geometry']
@@ -145,6 +145,9 @@ wood_da[wood_da==0] = np.nan
 wood_da = wood_da.transpose()/len(times) #
 
 
+wood_da2 = wood_c.wood.sum("time", skipna=True).transpose()/len(times)
+
+
 #### gamma correct the 2017 dark imagery
 from PIL import Image
 im_1_22 = 255.0 * (refim_da2 / 255.0)**(1 / 2.2)
@@ -168,13 +171,22 @@ ysorted = np.array(y)[ind]
 
 tmp = []
 for xx,yy in zip(xsorted,ysorted):
-    tmp.append(wood_c.wood.sel(x=xx,y=yy, method="nearest").to_numpy())
+    tmp.append(wood_c.wood.sel(x=xx,y=yy, method="nearest", tolerance=50).to_numpy())
 
 tmp = np.vstack(tmp)
 tmp[tmp==0]=np.nan
 
 
+### ffset is 6
+# tmp = []
+# for xx,yy in zip(xsorted,ysorted):
+#     tmp.append(wood_da2.sel(x=xx,y=yy, method="nearest", tolerance=50).to_numpy())
 
+# tmp = np.vstack(tmp)
+# tmp[tmp==0]=np.nan
+
+## offset = np.ceil(np.nansum(tmp))) 
+# offset = 6
 
 
 plt.figure(figsize=(16,16))
@@ -191,11 +203,15 @@ cbar.set_label("ELJ construction date")
 plt.ylabel('Northing (m)')
 plt.xlabel('Easting (m)')
 plt.title("a)", loc='left')
+# plt.gca().fmt_xdata = lambda x: "{0:f}".format(x)
+# plt.gca().fmt_ydata = lambda x: "{0:f}".format(x)
+plt.gca().ticklabel_format(useOffset=False, style='plain')
 
 plt.subplot(222)
 plt.imshow(np.rot90(im_1_22.astype(np.uint8)), origin="lower", extent = [refim_da2.x.min().to_numpy(),refim_da2.x.max().to_numpy(),refim_da2.y.min().to_numpy(),refim_da2.y.max().to_numpy()]) #aspect="equal"
+plt.gca().ticklabel_format(useOffset=False, style='plain')
 plt.setp( plt.gca().xaxis.get_majorticklabels(), rotation=45 )
-plt.plot(x,y,'wx', markersize=4, label='ELJ')
+plt.plot(np.array(x)[np.where(years>=2009)[0]],np.array(y)[np.where(years>=2009)[0]],'wx', markersize=14, label='ELJ')
 # plt.legend()
 im=plt.imshow(np.rot90(wood_da), alpha=1, cmap='inferno', vmin=0, vmax=1, origin='lower', extent = [refim_da2.x.min().to_numpy(),refim_da2.x.max().to_numpy(),refim_da2.y.min().to_numpy(),refim_da2.y.max().to_numpy()])
 
@@ -214,11 +230,12 @@ plt.gca().set_yticklabels(years[ind][::2])
 plt.ylabel('Year of ELJ construction')
 plt.title("c)", loc='left')
 
+
 plt.subplot(224)
 plt.plot(dt,np.nansum(tmp,axis=0))
 plt.ylabel('Number of active ELJs')
 plt.title("d)", loc='left')
-
+plt.ylim(0,10)
 # plt.show()
-plt.savefig("summaries/ELJ_dynamics_timesummery.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/ELJ_dynamics_timesummary.png", dpi=300, bbox_inches="tight")
 plt.close()

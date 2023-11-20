@@ -132,7 +132,7 @@ C,_,_,_ = scipy.linalg.lstsq(A, z)
 Z = np.dot(np.c_[np.ones(XX.shape), XX, YY, XX*YY, XX**2, YY**2], C).reshape(X.shape)
 del X
 del A, C, x, y, points
-del X, YY
+del YY
 # time = '2017-09-22'
 offset = 10
 
@@ -279,6 +279,23 @@ zMR=sorted(z)
 dists = pd.read_csv('br_dists.csv')
 LR = np.hstack((0,np.array(dists['LR'])))
 MR = np.hstack((0,np.array(dists['MR'][:43])))
+## rescale distances
+
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+LR = rescale_array(LR,11,2)
+
+MR = rescale_array(MR[::-1],12,20)
 
 
 zLR = np.array(zLR)
@@ -287,30 +304,71 @@ zMR = np.array(zMR)
 # zMR = zMR[zMR<25]
 # zMR = zMR[zMR>1]
 
+from matplotlib.patches import Rectangle
 
-plt.figure(figsize=(4,8))
+import geopandas as gpd
 
-plt.plot(np.linspace(0,MR[-1],len(zMR)), (sorted(zMR)[::-1]-np.max(zMR))/1000,'k',label='MR')
-plt.plot(np.linspace(0,LR[-1],len(zLR)), (sorted(zLR)[::-1]-np.max(zLR))/1000,'r--', lw=2, label='LR')
-yl=plt.ylim()
-
-O = np.linspace(0,MR[-1],len(zMR))
-E = (sorted(zMR)[::-1]-np.max(zMR))/1000
-A = np.vstack([np.array(O), np.ones(len(O))]).T
-m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
-plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'k:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
-
-O = np.linspace(0,LR[-1],len(zLR))
-E = (sorted(zLR)[::-1]-np.max(zLR))/1000
-A = np.vstack([np.array(O), np.ones(len(O))]).T
-m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
-plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'r:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
+file = '../raw_data/GIS/LR_active_widths.geojson'
+LR_widths = gpd.read_file(file)
+LR_widths = LR_widths['length'].values
 
 
-plt.ylabel('Elevation drop (km)'); plt.xlabel('Distance downstream (km)')
+file = '../raw_data/GIS/MR_active_widths.geojson'
+MR_widths = gpd.read_file(file)
+MR_widths = MR_widths['length'].values
+
+
+
+
+plt.figure(figsize=(18,6))
+plt.subplots_adjust(wspace=0.4, hspace=0.4)
+
+plt.subplot(221)
+# plt.plot(np.linspace(0,MR[-1],len(zMR)), (sorted(zMR)[::-1]-np.max(zMR))/1000,'k',label='MR')
+# plt.plot(np.linspace(0,LR[-1],len(zLR)), (sorted(zLR)[::-1]-np.max(zLR))/1000,'r--', lw=2, label='LR')
+
+rec=Rectangle((11,0), 1, 130, clip_on=False, color='gray')
+plt.gca().add_artist(rec)
+
+plt.plot(np.linspace(MR[0],MR[-1],len(zMR)), np.array(sorted(zMR)[::-1]),'k',label='MR') #-np.max(zMR)
+plt.plot(np.linspace(LR[0],LR[-1],len(zLR)), np.array(sorted(zLR)[::-1]),'r--', lw=2, label='LR') #-np.max(zLR)
+# yl=plt.ylim()
+
+# O = np.linspace(0,MR[-1],len(zMR))
+# E = (sorted(zMR)[::-1]-np.max(zMR))/1000
+# A = np.vstack([np.array(O), np.ones(len(O))]).T
+# m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+# plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'k:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
+
+# O = np.linspace(0,LR[-1],len(zLR))
+# E = (sorted(zLR)[::-1]-np.max(zLR))/1000
+# A = np.vstack([np.array(O), np.ones(len(O))]).T
+# m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+# plt.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'r:',lw=2, label='y = '+str(m)[:8]+'x+'+str(c)[:8])
+
+plt.title('c) ', loc='left')
+plt.ylabel('Elevation (m; NAVD88)'); plt.xlabel('River kilometer')
 plt.legend()
-# plt.show()
-plt.savefig("Elev_profiles.png", dpi=300, bbox_inches="tight")
+plt.gca().invert_xaxis()
+plt.ylim(0,130)
+plt.text(11,100,'former\nLake\nAldwell')
+
+
+plt.subplot(222)
+
+rec=Rectangle((11,0), 1, 600, clip_on=False, color='gray')
+plt.gca().add_artist(rec)
+plt.plot(np.linspace(MR[0],MR[-1],len(MR_widths)), MR_widths,'k',label='MR') #-np.max(zMR)
+plt.plot(np.linspace(LR[0],LR[-1],len(LR_widths)), LR_widths,'r--', lw=2, label='LR') #-np.max(zLR)
+
+plt.title('d) ', loc='left')
+plt.ylabel('Maximum active\nchannel width (m)'); plt.xlabel('River kilometer')
+plt.legend()
+plt.gca().invert_xaxis()
+plt.ylim(0,600)
+plt.text(11,450,'former\nLake\nAldwell')
+
+plt.savefig("Elev_width_profiles.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 

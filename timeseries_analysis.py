@@ -251,7 +251,23 @@ dists = pd.read_csv('br_dists.csv')
 LR = np.hstack((0,np.array(dists['LR'])))
 MR = np.hstack((0,np.array(dists['MR'][:43])))
 
+## rescale distances
 
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+LR = rescale_array(LR,11,2)
+
+MR = rescale_array(MR[::-1],12,20)
 
 # ######################################################
 
@@ -297,95 +313,154 @@ with np.load('summaries/Sed_time_series.npz', allow_pickle=True) as f:
 ########################################
 
 ################ PLOTS
+from matplotlib.patches import Rectangle
 
-
-summer = [5,6,7,9,11,12,13]
-winter = [0,1,2,3,4,8,10] ##30 cumecs or above
+# summer = [5,6,7,9,11,12,13]
+# winter = [0,1,2,3,4,8,10] ##30 cumecs or above
 
 ########################################
 plt.figure(figsize=(16,20))
-plt.subplots_adjust(wspace=0.3, hspace=0.3)
+plt.subplots_adjust(wspace=0.2, hspace=0.2)
 
 plt.subplot(421)
-plt.plot(MR, np.sum(MR_BRarr,axis=0),'k-', label='MR')
-plt.plot(LR, np.sum(LR_BRarr,axis=0),'r--', label='LR')
+plt.plot(MR, np.sum(MR_BRarr,axis=0),'k-', label='MR', lw=2)
+
+sigma = (np.sum(MR_BRarr,axis=0)/100)*15
+X1_plus_sigma = np.sum(MR_BRarr,axis=0) + sigma
+X1_minus_sigma = np.sum(MR_BRarr,axis=0) - sigma
+
+plt.fill_between(MR, X1_plus_sigma, X1_minus_sigma, alpha = 0.2, color = [.5,.5,.5])
+
+plt.plot(LR, np.sum(LR_BRarr,axis=0),'r--', label='LR', lw=2)
+
+sigma = (np.sum(LR_BRarr,axis=0)/100)*15
+X1_plus_sigma = np.sum(LR_BRarr,axis=0) + sigma
+X1_minus_sigma = np.sum(LR_BRarr,axis=0) - sigma
+
+plt.fill_between(LR, X1_plus_sigma, X1_minus_sigma, alpha = 0.2, color = [.5,.5,.5])
+
+plt.ylim(0,100+np.maximum(np.sum(MR_BRarr,axis=0).max(), np.sum(LR_BRarr,axis=0).max()))
+
+rec=Rectangle((11,0), 1, np.maximum(np.sum(MR_BRarr,axis=0).max(), np.sum(LR_BRarr,axis=0).max()), clip_on=False, color='gray')
+plt.gca().add_artist(rec)
+
 plt.xlabel("Distance downstream (km)"); 
 plt.ylabel(r"Sum of estimated" "\n" r"wood m$^2$")
-
+plt.gca().invert_xaxis()
 plt.legend()
 plt.title('a) ', loc='left')
 
+plt.text(11,25000,'former\nLake\nAldwell')
+
+# plt.subplot(422)
+# plt.plot(dt[summer],np.sum(MR_BRarr,axis=1)[summer],'k-o', label='MR, Discharge < 30 m$^3$/s')
+# plt.plot(dt[summer],np.sum(LR_BRarr,axis=1)[summer],'r--o', label='LR, Discharge < 30 m$^3$/s')
+# plt.plot(dt[winter],np.sum(MR_BRarr,axis=1)[winter],'k-*', label='MR, Discharge > 30 m$^3$/s')
+# plt.plot(dt[winter],np.sum(LR_BRarr,axis=1)[winter],'r--*', label='LR, Discharge > 30 m$^3$/s')
+# plt.ylabel(r"Sum of estimated" "\n" r"wood m$^2$")
+# plt.legend()
+# plt.plot(dt,np.sum(MR_BRarr,axis=1),'-',color=[0.75,0.75,0.75],lw=2, alpha=0.5)
+# plt.plot(dt,np.sum(LR_BRarr,axis=1),'--', color=[0.25,0.25,0.25],lw=2, alpha=0.5)
+# plt.title('b) ', loc='left')
+
+
 plt.subplot(422)
-plt.plot(dt[summer],np.sum(MR_BRarr,axis=1)[summer],'k-o', label='MR, Discharge < 30 m$^3$/s')
-plt.plot(dt[summer],np.sum(LR_BRarr,axis=1)[summer],'r--o', label='LR, Discharge < 30 m$^3$/s')
-plt.plot(dt[winter],np.sum(MR_BRarr,axis=1)[winter],'k-*', label='MR, Discharge > 30 m$^3$/s')
-plt.plot(dt[winter],np.sum(LR_BRarr,axis=1)[winter],'r--*', label='LR, Discharge > 30 m$^3$/s')
-plt.ylabel(r"Sum of estimated" "\n" r"wood m$^2$")
-
-plt.legend()
-plt.plot(dt,np.sum(MR_BRarr,axis=1),'-',color=[0.75,0.75,0.75],lw=2, alpha=0.5)
-plt.plot(dt,np.sum(LR_BRarr,axis=1),'--', color=[0.25,0.25,0.25],lw=2, alpha=0.5)
-plt.title('b) ', loc='left')
-
-plt.subplot(423)
 plt.plot(MR, np.sum(MR_BRarr+MR_BRarrsed,axis=0),'k-', label='MR')
 plt.plot(LR, np.sum(LR_BRarr+LR_BRarrsed,axis=0),'r--', label='LR')
 plt.ylabel(r"Sum of estimated" "\n" r"sediment m$^2$")
 plt.xlabel("Distance downstream (km)"); 
-plt.legend()
-plt.title('c) ', loc='left')
 
-plt.subplot(424)
-plt.plot(dt[summer],np.sum(MR_BRarr+MR_BRarrsed,axis=1)[summer],'k-o', label='MR, Discharge < 30 m$^3$/s')
-plt.plot(dt[summer],np.sum(LR_BRarr+LR_BRarrsed,axis=1)[summer],'r--o', label='LR, Discharge < 30 m$^3$/s')
-plt.plot(dt[winter],np.sum(MR_BRarr+MR_BRarrsed,axis=1)[winter],'k-*', label='MR, Discharge > 30 m$^3$/s')
-plt.plot(dt[winter],np.sum(LR_BRarr+LR_BRarrsed,axis=1)[winter],'r--*', label='LR, Discharge > 30 m$^3$/s')
-plt.ylabel(r"Sum of estimated" "\n" r"sediment m$^2$")
-plt.legend()
-plt.plot(dt,np.sum(MR_BRarr+MR_BRarrsed,axis=1),'-',color=[0.75,0.75,0.75],lw=2, alpha=0.5)
-plt.plot(dt,np.sum(LR_BRarrsed,axis=1),'--', color=[0.25,0.25,0.25],lw=2, alpha=0.5)
-plt.title('d) ', loc='left')
+plt.ylim(0,np.maximum(np.sum(LR_BRarr+LR_BRarrsed,axis=0).max(), np.sum(LR_BRarr+LR_BRarrsed,axis=0).max()))
 
+rec=Rectangle((11,0), 1, np.maximum(np.sum(LR_BRarr+LR_BRarrsed,axis=0).max(), np.sum(LR_BRarr+LR_BRarrsed,axis=0).max()), clip_on=False, color='gray')
+plt.gca().add_artist(rec)
+
+plt.legend()
+plt.title('b) ', loc='left')
+plt.gca().invert_xaxis()
+plt.legend()
+
+
+# plt.show()
+plt.savefig("summaries/sedimentwood_space_plots.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# plt.subplot(424)
+# plt.plot(dt[summer],np.sum(MR_BRarr+MR_BRarrsed,axis=1)[summer],'k-o', label='MR, Discharge < 30 m$^3$/s')
+# plt.plot(dt[summer],np.sum(LR_BRarr+LR_BRarrsed,axis=1)[summer],'r--o', label='LR, Discharge < 30 m$^3$/s')
+# plt.plot(dt[winter],np.sum(MR_BRarr+MR_BRarrsed,axis=1)[winter],'k-*', label='MR, Discharge > 30 m$^3$/s')
+# plt.plot(dt[winter],np.sum(LR_BRarr+LR_BRarrsed,axis=1)[winter],'r--*', label='LR, Discharge > 30 m$^3$/s')
+# plt.ylabel(r"Sum of estimated" "\n" r"sediment m$^2$")
+# plt.legend()
+# plt.plot(dt,np.sum(MR_BRarr+MR_BRarrsed,axis=1),'-',color=[0.75,0.75,0.75],lw=2, alpha=0.5)
+# plt.plot(dt,np.sum(LR_BRarrsed,axis=1),'--', color=[0.25,0.25,0.25],lw=2, alpha=0.5)
+# plt.title('d) ', loc='left')
+
+
+
+plt.figure(figsize=(12,12))
+plt.subplots_adjust(wspace=0.3, hspace=0.3)
+plt.subplot(221)
+plt.plot(dt, np.sum(MR_BRarr,axis=1),'k-', label='MR', lw=2)
+
+sigma = (np.sum(MR_BRarr,axis=1)/100)*15
+X1_plus_sigma = np.sum(MR_BRarr,axis=1) + sigma
+X1_minus_sigma = np.sum(MR_BRarr,axis=1) - sigma
+
+plt.fill_between(dt, X1_plus_sigma, X1_minus_sigma, alpha = 0.2, color = 'k')
+plt.plot(dt, np.sum(LR_BRarr,axis=1),'r--', label='LR', lw=2)
+
+sigma = (np.sum(LR_BRarr,axis=1)/100)*15
+X1_plus_sigma = np.sum(LR_BRarr,axis=1) + sigma
+X1_minus_sigma = np.sum(LR_BRarr,axis=1) - sigma
+
+plt.fill_between(dt, X1_plus_sigma, X1_minus_sigma, alpha = 0.2, color = 'r')
+plt.ylim(0,5000+np.maximum(np.sum(MR_BRarr,axis=1).max(), np.sum(LR_BRarr,axis=1).max()))
+plt.ylabel(r"Sum of estimated" "\n" r"wood (m$^2$)")
+# plt.gca().invert_xaxis()
+plt.legend()
+plt.title('a) ', loc='left')
+
+plt.subplot(222)
+plt.plot(dt, np.sum(MR_BRarr+MR_BRarrsed,axis=1),'k-', label='MR')
+plt.plot(dt, np.sum(LR_BRarr+LR_BRarrsed,axis=1),'r--', label='LR')
+plt.ylabel(r"Sum of estimated" "\n" r"sediment (m$^2$)")
+
+plt.ylim(0,400000)
+plt.legend()
+plt.title('b) ', loc='left')
+# plt.gca().invert_xaxis()
+plt.legend()
 
 woodsed_ratio_MR = np.sum(MR_BRarr,axis=1)/(np.sum(MR_BRarrsed,axis=1)+np.sum(MR_BRarr,axis=1))
 woodsed_ratio_LR = np.sum(LR_BRarr,axis=1)/(np.sum(LR_BRarrsed,axis=1)+np.sum(LR_BRarr,axis=1))
 
-plt.subplot(425)
-plt.plot(dt[summer],woodsed_ratio_MR[summer],'k-o', label='MR')
-plt.plot(dt[summer],woodsed_ratio_LR[summer],'r--o', label='LR')
-plt.ylabel("Ratio of \n wood and sediment");
+plt.subplot(223)
+plt.plot(dt,woodsed_ratio_MR,'k-', label='MR')
+plt.plot(dt,woodsed_ratio_LR,'r--', label='LR')
+plt.ylabel("Ratio of \n wood and sediment (-)");
 plt.legend()
-plt.title(r'e) Discharge < 30 m$^3$/s', loc='left')
-
-plt.subplot(426)
-plt.plot(dt[winter],woodsed_ratio_MR[winter],'k-*', label='MR')
-plt.plot(dt[winter],woodsed_ratio_LR[winter],'r--*', label='LR')
-plt.ylabel("Ratio of \n wood and sediment");
-plt.legend()
-plt.title(r'f) Discharge > 30 m$^3$/s', loc='left')
-
+plt.title(r'c)', loc='left') 
+plt.ylim(0,0.2) #.15+woodsed_ratio_LR.max())
 
 woodsed_ratio_MR = (np.sum(MR_BRarr,axis=1)/np.sum(MR_BRarr,axis=1).max() ) / ((np.sum(MR_BRarrsed,axis=1)+np.sum(MR_BRarr,axis=1)) / (np.sum(MR_BRarrsed,axis=1).max()+np.sum(MR_BRarr,axis=1).max()))
 woodsed_ratio_LR = (np.sum(LR_BRarr,axis=1)/np.sum(LR_BRarr,axis=1).max() ) / ((np.sum(LR_BRarrsed,axis=1)+np.sum(LR_BRarr,axis=1)) / (np.sum(LR_BRarrsed,axis=1).max()+np.sum(LR_BRarr,axis=1).max()))
 
-
-plt.subplot(427)
-plt.plot(dt[summer],woodsed_ratio_MR[summer],'k-o', label='MR')
-plt.plot(dt[summer],woodsed_ratio_LR[summer],'r--o', label='LR')
-plt.ylabel("Ratio of normalized\n wood and sediment");
+plt.subplot(224)
+plt.plot(dt,woodsed_ratio_MR,'k-', label='MR')
+plt.plot(dt,woodsed_ratio_LR,'r--', label='LR')
+plt.ylabel("Ratio of normalized\n wood and sediment (-)");
 plt.legend()
-plt.title(r'g) Discharge < 30 m$^3$/s', loc='left')
-
-plt.subplot(428)
-plt.plot(dt[winter],woodsed_ratio_MR[winter],'k-*', label='MR')
-plt.plot(dt[winter],woodsed_ratio_LR[winter],'r--*', label='LR')
-plt.ylabel("Ratio of normalized\n wood and sediment");
-plt.legend()
-plt.title(r'h) Discharge > 30 m$^3$/s', loc='left')
+plt.title(r'd)', loc='left')
+plt.ylim(0,1.7) #.15+woodsed_ratio_LR.max())
 
 # plt.show()
-plt.savefig("summaries/sedimentwoodratio_spacetime_plots.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/sedimentwoodratio_time_plots.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+
 
 
 # plt.subplot(425)
@@ -418,63 +493,64 @@ LR_BRarrsed_c = (LR_BRarrsed+LR_BRarr)/A_LR
 
 
 ########################################
-plt.figure(figsize=(16,20))
+plt.figure(figsize=(14,18))
 plt.subplots_adjust(wspace=0.2, hspace=0.2)
 
 plt.subplot(421)
-plt.imshow(np.flipud(MR_BRarr), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(MR_BRarr), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
 cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
 plt.gca().invert_yaxis()
-plt.title('a) MR, wood', loc='left')
-# plt.xlabel("Distance downstream (km)"); 
-
-plt.subplot(423)
-plt.imshow(np.flipud(MR_BRarr+MR_BRarrsed), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label(r"Sediment area, m$^2$")
-plt.gca().invert_yaxis()
-plt.title('c) MR, sediment', loc='left')
+plt.title('a)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(422)
-plt.imshow(np.flipud(LR_BRarr), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(LR_BRarr), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto')
 cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
 plt.gca().invert_yaxis()
-plt.title('c) LR, wood', loc='left')
+# plt.title('c) LR', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+plt.subplot(423)
+plt.imshow(np.flipud(MR_BRarr+MR_BRarrsed), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label(r"Sediment area, m$^2$")
+plt.gca().invert_yaxis()
+plt.title('b)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(424)
-plt.imshow(np.flipud(LR_BRarr+LR_BRarrsed), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(LR_BRarr+LR_BRarrsed), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto')
 cb=plt.colorbar(); cb.set_label(r"Sediment area, m$^2$")
 plt.gca().invert_yaxis()
-plt.title('d) LR, sediment', loc='left')
+# plt.title('d) LR', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(425)
-plt.imshow(np.flipud(MR_BRarr_c), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label("Wood concentration\n" r"m$^2$/m$^2$")
+plt.imshow(np.flipud(MR_BRarr_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label("Normalized wood area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
-plt.title('e) MR, wood conc.', loc='left')
+plt.title('c)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(427)
-plt.imshow(np.flipud(MR_BRarrsed_c), cmap='inferno', extent=[0, MR[-1] , dt[0], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label("Sediment concentration\n" r"m$^2$/m$^2$")
+plt.imshow(np.flipud(MR_BRarrsed_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label("Normalized sediment area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
-plt.title('g) MR, sediment conc', loc='left')
-plt.xlabel("Distance downstream (km)"); 
+# plt.title('g) MR', loc='left')
+plt.xlabel("River kilometer"); 
 
 plt.subplot(426)
-plt.imshow(np.flipud(LR_BRarr_c), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label("Wood concentration\n" r"m$^2$/m$^2$")
+plt.imshow(np.flipud(LR_BRarr_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label("Normalized wood area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
-plt.title('f) LR, wood conc.', loc='left')
+# plt.title('d)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(428)
-plt.imshow(np.flipud(LR_BRarrsed_c), cmap='inferno', extent=[0, LR[-1] , dt[0], dt[-1]], aspect='auto')
-cb=plt.colorbar(); cb.set_label("Sediment concentration\n" r"m$^2$/m$^2$")
+plt.imshow(np.flipud(LR_BRarrsed_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto')
+cb=plt.colorbar(); cb.set_label("Normalized sediment area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
-plt.title('h) LR, sediment conc.', loc='left'); plt.xlabel("Distance downstream (km)"); 
+plt.title('d) LR', loc='left');
+plt.xlabel("River kilometer"); 
 
 
 # plt.show()

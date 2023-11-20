@@ -459,73 +459,79 @@ plt.subplots_adjust(wspace=0.7, hspace=0.2)
 
 ax1 = plt.subplot2grid(shape=(2,6), loc=(0,0), colspan=2)
 ax1.loglog(O[0],E[0],'ko',label='MR, 2012-04-07')
-ax1.plot(O[1],E[1],'ro',label='MR, 2017-09-22')
-ax1.plot(O[2],E[2],'ks',label='LR, 2012-04-07')
+ax1.plot(O[1],E[1],'ks',label='MR, 2017-09-22')
+ax1.plot(O[2],E[2],'ro',label='LR, 2012-04-07')
 ax1.plot(O[3],E[3],'rs',label='LR, 2017-09-22')
 
 yl=plt.xlim()
 ax1.plot(yl, yl, 'b:', lw=2, label='1:1 relation')
 
-A = np.vstack([np.array(O), np.ones(len(O))]).T
-m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+# A = np.vstack([np.array(O), np.ones(len(O))]).T
+# m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
 
-ax1.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'r:',lw=2, label='y = '+str(m)[:4]+'x+'+str(c)[:4])
+# ax1.plot(np.sort(np.array(O)), m*np.sort(np.array(O)) + c, 'r:',lw=2, label='y = '+str(m)[:4]+'x+'+str(c)[:4])
 
-### inverse prob
-A = np.vstack([np.array(E), np.ones(len(E))]).T
-m, c = np.linalg.lstsq(A, np.array(O), rcond=None)[0]
+# ### inverse prob
+# A = np.vstack([np.array(E), np.ones(len(E))]).T
+# m, c = np.linalg.lstsq(A, np.array(O), rcond=None)[0]
+
+ax1.text(O[0],10+E[0],"14.09%") #14.09
+ax1.text(O[1],10+E[1],"13.28%") #13.28
+ax1.text(O[2],10+E[2],"14.32%") #14.32
+ax1.text(O[3],10+E[3],"14.60%") #14.60
 
 ax1.legend()
 ax1.set_ylabel(r"Estimated wood, m$^2$")
 ax1.set_xlabel(r"Observed wood, m$^2$")
 ax1.set_title('a) MR+LR', loc='left')
 
-
 ax2 = plt.subplot2grid((2,6), (0,2), colspan=2)
-ax2.loglog(bins1[1:]/grid2sqm, MR_frq3,'k-',lw=2, label='Obs., 2012-04-07')
-ax2.plot(bins1[1:]/grid2sqm, MR_frq4,'r-',lw=2, label='Est., 2012-04-07')
+ax2.loglog(bins1[1:]/grid2sqm, MR_frq3,'m-',lw=2, label='Obs., 2012-04-07')
+ax2.plot(bins1[1:]/grid2sqm, MR_frq4,'b-',lw=2, label='Est., 2012-04-07')
 
-ax2.plot(bins1[1:]/grid2sqm, MR_frq1,'k--',lw=2, label='Obs., 2017-09-22')
-ax2.plot(bins1[1:]/grid2sqm, MR_frq2,'r--',lw=2, label='Est., 2017-09-22')
+ax2.plot(bins1[1:]/grid2sqm, MR_frq1,'m--',lw=2, label='Obs., 2017-09-22')
+ax2.plot(bins1[1:]/grid2sqm, MR_frq2,'b--',lw=2, label='Est., 2017-09-22')
 ax2.legend()
 ax2.set_ylabel(r'Frequency')
 ax2.set_xlabel(r"Wood pile or piece area (m$^2$)")
 ax2.set_title('b) MR', loc='left')
 
-
 ax3 = plt.subplot2grid((2,6), (0,4), colspan=2)
-ax3.loglog(bins1[1:]/grid2sqm, LR_frq3,'k-',lw=2, label='Obs. 2012-04-07')
-ax3.plot(bins1[1:]/grid2sqm, LR_frq4,'r-',lw=2, label='Est. 2012-04-07')
+ax3.loglog(bins1[1:]/grid2sqm, LR_frq3,'m-',lw=2, label='Obs. 2012-04-07')
+ax3.plot(bins1[1:]/grid2sqm, LR_frq4,'b-',lw=2, label='Est. 2012-04-07')
 
-ax3.plot(bins1[1:]/grid2sqm, LR_frq1,'k--',lw=2, label='Obs. 2017-09-22')
-ax3.plot(bins1[1:]/grid2sqm, LR_frq2,'r--',lw=2, label='Est. 2017-09-22')
+ax3.plot(bins1[1:]/grid2sqm, LR_frq1,'m--',lw=2, label='Obs. 2017-09-22')
+ax3.plot(bins1[1:]/grid2sqm, LR_frq2,'b--',lw=2, label='Est. 2017-09-22')
 ax3.legend()
 ax3.set_ylabel(r'Frequency')
 ax3.set_xlabel(r"Wood pile or piece area (m$^2$)")
 ax3.set_title('c) LR', loc='left')
 
 ax4 = plt.subplot2grid((2,6), (1,1), colspan=2)
-ax4.plot(MR,np.cumsum(np.array(MR_BR)/grid2sqm), 'k--', label='Obs.'+times[0])
-ax4.plot(MR,np.cumsum(np.array(MR_estBR)/grid2sqm), 'r--', label='Est. '+times[0])
+ax4.plot(MR,np.cumsum(np.array(MR_BR)/grid2sqm), 'm-', label='Obs.'+times[0])
+ax4.plot(MR,np.cumsum(np.array(MR_estBR)/grid2sqm), 'm--', label='Est. '+times[0])
 
-ax4.plot(MR,np.cumsum(np.array(MR_BR2)/grid2sqm), 'k-', lw=2, label='Obs. '+times[1])
-ax4.plot(MR, np.cumsum(np.array(MR_estBR2)/grid2sqm), 'r-', lw=2, label='Est. '+times[1])
+ax4.plot(MR,np.cumsum(np.array(MR_BR2)/grid2sqm), 'b-', lw=2, label='Obs. '+times[1])
+ax4.plot(MR, np.cumsum(np.array(MR_estBR2)/grid2sqm), 'b--', lw=2, label='Est. '+times[1])
 ax4.set_title('d) MR', loc='left')
 plt.legend()
 ax4.set_xlabel("Distance downstream (km)")
 ax4.set_ylabel(r"Cumulative sum of wood, m$^2$")
-
+plt.ylim(0,40000)
+plt.xlim(0,8)
 
 ax5 = plt.subplot2grid((2,6), (1,3), colspan=2)
-ax5.plot(LR,np.cumsum(np.array(LR_BR)/grid2sqm), 'k--', label='Obs. '+times[0])
-ax5.plot(LR,np.cumsum(np.array(LR_estBR)/grid2sqm), 'r--', label='Est. '+times[0])
+ax5.plot(LR,np.cumsum(np.array(LR_BR)/grid2sqm), 'm-', label='Obs. '+times[0])
+ax5.plot(LR,np.cumsum(np.array(LR_estBR)/grid2sqm), 'm--', label='Est. '+times[0])
 
-ax5.plot(LR,np.cumsum(np.array(LR_BR2)/grid2sqm), 'k-', lw=2, label='Obs. '+times[1])
-ax5.plot(LR,np.cumsum(np.array(LR_estBR2)/grid2sqm), 'r-', lw=2, label='Est. '+times[1])
+ax5.plot(LR,np.cumsum(np.array(LR_BR2)/grid2sqm), 'b-', lw=2, label='Obs. '+times[1])
+ax5.plot(LR,np.cumsum(np.array(LR_estBR2)/grid2sqm), 'b--', lw=2, label='Est. '+times[1])
 ax5.set_title('e) LR', loc='left')
 ax5.set_xlabel("Distance downstream (km)")
 ax5.set_ylabel(r"Cumulative sum of wood, m$^2$")
 plt.legend()
+plt.ylim(0,40000)
+plt.xlim(0,8)
 
 # plt.show()
 plt.savefig("summaries/MR_LR_wood_eval.png", dpi=300, bbox_inches="tight")

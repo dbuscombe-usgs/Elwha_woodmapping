@@ -145,6 +145,56 @@ geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtyp
 label_geotiffs_ds = geotiffs_da.to_dataset('band')
 
 
+###############################
+########### analysis of transition
+import mchmm as mc
+
+
+## veg, water, sed, wood
+PM = []; O2M = []; O3M = []
+## all - instantanues
+for counter,g in tqdm(enumerate(MR_bars[7:])):
+    print("Working on region {}".format(7+counter))
+    label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
+
+    A = []
+    for x, y in zip(label_c.x, label_c.y):
+        tmp = label_c[1].sel(x=x, y=y).values
+        a = mc.MarkovChain().from_data(tmp)
+        A.append(a)
+
+    ind = np.where(np.array([len(a.observed_matrix) for a in A])==4)[0]
+    # np.array(A[ind].n_order_matrix)
+    if len(ind)>0:
+        PM.append(np.dstack([np.array(A[i].observed_p_matrix) for i in ind]).mean(axis=-1))
+        O2M.append(np.dstack([np.array(A[i].n_order_matrix(order=2)) for i in ind]).mean(axis=-1))
+        O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
+    else:
+        PM.append(np.nan)
+        O2M.append(np.nan)
+        O3M.append(np.nan)
+
+
+np.savez('summaries/MR_transition_matrices.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
+
+
+# tmp = np.array([[0.34736165, 0.22265122, 0.36679537, 0.06319176],
+#     [0.05255255, 0.62374517, 0.29045474, 0.03324753],
+#     [0.04113042, 0.69750107, 0.2202381 , 0.04113042],
+#     [0.14864865, 0.36486486, 0.27027027, 0.21621622]])
+
+# g = sns.heatmap(tmp, annot = True, cmap ='plasma', 
+#             linecolor ='black', linewidths = 1, cbar_kws={'label': 'Probability of transition'})
+
+# g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+# g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+
+# # plt.show()
+
+# plt.savefig("summaries/example_TPM.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
 #############################################################
 #### focused movies
 

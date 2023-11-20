@@ -28,14 +28,14 @@ for counter,f in enumerate(wood_files):
 
     plt.subplot(421)
     if counter==0:
-        plt.plot(data['loss'],'-',color='k')
-        plt.plot(data['val_loss'],'--',color='k')
+        plt.plot(data['loss'],'-',color=[.75,.75,.75])
+        plt.plot(data['val_loss'],'--',color=[.75,.75,.75])
         plt.ylabel("Loss (-)"); plt.xlabel("Epoch (-)")
         plt.title('a) Wood', loc='left'); 
 
     if counter==1:
-        plt.plot(data['loss'],'-',color='r')
-        plt.plot(data['val_loss'],'--',color='r')
+        plt.plot(data['loss'],'-',color='m')
+        plt.plot(data['val_loss'],'--',color='m')
     if counter==2:
         plt.plot(data['loss'],'-',color='g')
         plt.plot(data['val_loss'],'--',color='g')
@@ -43,10 +43,10 @@ for counter,f in enumerate(wood_files):
 
     plt.subplot(422)
     if counter==0:
-        plt.plot(data['lr'],'-',color='k')
+        plt.plot(data['lr'],'-',color=[.75,.75,.75])
         plt.ylabel("Learning rate (-)"); plt.xlabel("Epoch (-)")
     if counter==1:
-        plt.plot(data['lr'],'-',color='r')
+        plt.plot(data['lr'],'-',color='m')
     if counter==2:
         plt.plot(data['lr'],'-',color='g')
         plt.ylim(0,80); plt.xlim(0,0.0001)
@@ -62,14 +62,14 @@ for counter,f in enumerate(sed_files):
 
     plt.subplot(423)
     if counter==0:
-        plt.plot(data['loss'],'-',color='k')
-        plt.plot(data['val_loss'],'--',color='k')
+        plt.plot(data['loss'],'-',color=[.75,.75,.75])
+        plt.plot(data['val_loss'],'--',color=[.75,.75,.75])
         plt.ylabel("Loss (-)"); plt.xlabel("Epoch (-)")
         plt.title('b) Sediment', loc='left'); 
 
     if counter==1:
-        plt.plot(data['loss'],'-',color='r')
-        plt.plot(data['val_loss'],'--',color='r')
+        plt.plot(data['loss'],'-',color='m')
+        plt.plot(data['val_loss'],'--',color='m')
     if counter==2:
         plt.plot(data['loss'],'-',color='g')
         plt.plot(data['val_loss'],'--',color='g')
@@ -77,10 +77,10 @@ for counter,f in enumerate(sed_files):
 
     plt.subplot(424)
     if counter==0:
-        plt.plot(data['lr'],'-',color='k')
+        plt.plot(data['lr'],'-',color=[.75,.75,.75])
         plt.ylabel("Learning rate (-)"); plt.xlabel("Epoch (-)")
     if counter==1:
-        plt.plot(data['lr'],'-',color='r')
+        plt.plot(data['lr'],'-',color='m')
     if counter==2:
         plt.plot(data['lr'],'-',color='g')
         plt.ylim(0,80); plt.xlim(0,0.0001)
@@ -96,13 +96,13 @@ for counter,f in enumerate(veg_files):
 
     plt.subplot(425)
     if counter==0:
-        plt.plot(data['loss'],'-',color='k')
-        plt.plot(data['val_loss'],'--',color='k')
+        plt.plot(data['loss'],'-',color=[.75,.75,.75])
+        plt.plot(data['val_loss'],'--',color=[.75,.75,.75])
         plt.ylabel("Loss (-)"); plt.xlabel("Epoch (-)")
         plt.title('c) Vegetation', loc='left'); 
     if counter==1:
-        plt.plot(data['loss'],'-',color='r')
-        plt.plot(data['val_loss'],'--',color='r')
+        plt.plot(data['loss'],'-',color='m')
+        plt.plot(data['val_loss'],'--',color='m')
     if counter==2:
         plt.plot(data['loss'],'-',color='g')
         plt.plot(data['val_loss'],'--',color='g')
@@ -110,10 +110,10 @@ for counter,f in enumerate(veg_files):
 
     plt.subplot(426)
     if counter==0:
-        plt.plot(data['lr'],'-',color='k')
+        plt.plot(data['lr'],'-',color=[.75,.75,.75])
         plt.ylabel("Learning rate (-)"); plt.xlabel("Epoch (-)")
     if counter==1:
-        plt.plot(data['lr'],'-',color='r')
+        plt.plot(data['lr'],'-',color='m')
     if counter==2:
         plt.plot(data['lr'],'-',color='g')
     plt.xlim(0,80); plt.ylim(0,0.0001)
@@ -128,13 +128,13 @@ for counter,f in enumerate(water_files):
 
     plt.subplot(427)
     if counter==0:
-        plt.plot(data['loss'],'-',color='k')
-        plt.plot(data['val_loss'],'--',color='k')
+        plt.plot(data['loss'],'-',color=[.75,.75,.75])
+        plt.plot(data['val_loss'],'--',color=[.75,.75,.75])
         plt.ylabel("Loss (-)"); plt.xlabel("Epoch (-)")
         plt.title('d) Water', loc='left'); 
     if counter==1:
-        plt.plot(data['loss'],'-',color='r')
-        plt.plot(data['val_loss'],'--',color='r')
+        plt.plot(data['loss'],'-',color='m')
+        plt.plot(data['val_loss'],'--',color='m')
     if counter==2:
         plt.plot(data['loss'],'-',color='g')
         plt.plot(data['val_loss'],'--',color='g')
@@ -142,10 +142,10 @@ for counter,f in enumerate(water_files):
 
     plt.subplot(428)
     if counter==0:
-        plt.plot(data['lr'],'-',color='k')
+        plt.plot(data['lr'],'-',color=[.75,.75,.75])
         plt.ylabel("Learning rate (-)"); plt.xlabel("Epoch (-)")
     if counter==1:
-        plt.plot(data['lr'],'-',color='r')
+        plt.plot(data['lr'],'-',color='m')
     if counter==2:
         plt.plot(data['lr'],'-',color='g')
     plt.xlim(0,80); plt.ylim(0,0.0001)
