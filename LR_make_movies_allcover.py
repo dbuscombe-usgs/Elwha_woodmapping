@@ -40,11 +40,11 @@ times = [
     '2017-09-22'
 ]
 
-# n_workers = 22
-# threads_per_worker = 2
-# memory_limit='115GB'
-## start client
-# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+n_workers = 10
+threads_per_worker = 2
+memory_limit='50GB'
+# start client
+client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 cwd = os.getcwd()
 
@@ -147,6 +147,21 @@ reference = im_geotiffs_ds.sel(time='2016-07-14')
 
 
 
+## budget reaches
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+LRbudget_reaches = gj['features']
+
+LRbudget_reaches_redo = []
+for b in LRbudget_reaches:
+    LRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
+
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches_epsg4326.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+LRbudget_reaches2 = gj['features']
+
 
 ###############################
 ########### analysis of transition
@@ -172,6 +187,41 @@ reference = im_geotiffs_ds.sel(time='2016-07-14')
 #     O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
 
 # np.savez('summaries/LR_transition_matrices.npz', LR_PM = PM, LR_O2M = O2M, LR_O3M = O3M)
+
+
+
+###############################
+########### analysis of transition
+
+
+## veg, water, sed, wood
+PM = []; O2M = []; O3M = []
+## all - instantanues
+for counter,g in tqdm(enumerate(LRbudget_reaches_redo)):
+    print("Working on region {}".format(counter))
+    label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
+
+    A = []
+    for x, y in zip(label_c.x, label_c.y):
+        tmp = label_c[1].sel(x=x, y=y).values
+        a = mc.MarkovChain().from_data(tmp)
+        A.append(a)
+
+    ind = np.where(np.array([len(a.observed_matrix) for a in A])==4)[0]
+    try:
+        # np.array(A[ind].n_order_matrix)
+        PM.append(np.dstack([np.array(A[i].observed_p_matrix) for i in ind]).mean(axis=-1))
+        O2M.append(np.dstack([np.array(A[i].n_order_matrix(order=2)) for i in ind]).mean(axis=-1))
+        O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
+    except:
+        PM.append(np.ones((4,4))*np.nan)
+        O2M.append(np.ones((4,4))*np.nan)
+        O3M.append(np.ones((4,4))*np.nan)
+
+np.savez('summaries/LR_transition_matrices_budgetreaches.npz', LR_PM = PM, LR_O2M = O2M, LR_O3M = O3M)
+
+
+
 
 # # np.median(PM,axis=0)
 
@@ -230,26 +280,53 @@ x = xy[:,0]
 y = xy[:,1]
 
 
-MR_wood_pers = [p[3,3] for p in MR_tpm['MR_PM']]
-MR_sed_pers = [p[2,2] for p in MR_tpm['MR_PM']]
-MR_veg_pers = [p[0,0] for p in MR_tpm['MR_PM']]
-MR_water_pers = [p[1,1] for p in MR_tpm['MR_PM']]
-MR_veg_encroach = [p[0,1] for p in MR_tpm['MR_PM']]
-MR_veg_growth = [p[0,2] for p in MR_tpm['MR_PM']]
-MR_wood_occl = [p[0,3] for p in MR_tpm['MR_PM']]
-MR_veg_erosion = [p[1,0] for p in MR_tpm['MR_PM']]
-MR_sed_erosion = [p[1,2] for p in MR_tpm['MR_PM']]
-MR_wood_erosion = [p[1,3] for p in MR_tpm['MR_PM']]
+MR_wood_pers = [p[3,3] for p in MR_TPM]#
+MR_sed_pers = [p[2,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_pers = [p[0,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_water_pers = [p[1,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_encroach = [p[0,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_growth = [p[0,2] for p in MR_TPM]# MR_tpm['MR_PM']]
+MR_wood_occl = [p[0,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_erosion = [p[1,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_sed_erosion = [p[1,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_wood_erosion = [p[1,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
 
-plt.plot(MR_wood_pers, MR_sed_pers,'ro')
-plt.plot(MR_wood_pers, MR_veg_pers,'gs')
-plt.plot(MR_wood_pers, MR_water_pers,'bh')
+species = ([str(k) for k in range(len(MR_wood_pers))])
+
+weight_counts = {
+    "Wood": np.array(MR_wood_pers),
+    "Sed": np.array(MR_sed_pers),
+    "Veg": np.array(MR_veg_pers),
+    "Water": np.array(MR_water_pers)
+}
+width = 0.5
+
+fig, ax = plt.subplots()
+bottom = np.zeros(len(species))
+
+for boolean, weight_count in weight_counts.items():
+    p = ax.bar(times[1:], weight_count, width, label=boolean, bottom=bottom)
+    bottom += weight_count
+
+ax.set_title("Landcover persistence")
+ax.legend(loc="upper right")
+
 plt.show()
 
-plt.plot(MR_wood_pers, MR_sed_erosion,'ro')
-plt.plot(MR_wood_pers, MR_wood_erosion,'go')
-plt.plot(MR_wood_pers, MR_veg_erosion,'bo')
-plt.show()
+
+
+
+
+
+# # plt.plot(MR_wood_pers, MR_sed_pers,'ro')
+# plt.plot(MR_wood_pers, MR_veg_pers,'gs')
+# # plt.plot(MR_wood_pers, MR_water_pers,'bh')
+# plt.show()
+
+# plt.plot(MR_wood_pers, MR_sed_erosion,'ro')
+# plt.plot(MR_wood_pers, MR_wood_erosion,'go')
+# plt.plot(MR_wood_pers, MR_veg_erosion,'bo')
+# plt.show()
 
 
 

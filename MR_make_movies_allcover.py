@@ -37,10 +37,10 @@ times = [
     '2017-09-22'
 ]
 
-# n_workers = 22
+# n_workers = 10
 # threads_per_worker = 2
-# memory_limit='115GB'
-## start client
+# memory_limit='50GB'
+# # start client
 # client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 cwd = os.getcwd()
@@ -77,6 +77,25 @@ r = "../raw_data/GIS/MR_movie_bars.geojson"
 with open(r) as f:
     gj = json.load(f)
 MR_bars = [a['geometry'] for a in gj['features']]
+
+
+
+## budget reaches
+brfile = '../results/MR/MR_wood/wood_detect/model1/MR_budget_reaches.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+MRbudget_reaches = gj['features']
+
+MRbudget_reaches_redo = []
+for b in MRbudget_reaches:
+    MRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
+
+brfile = '../results/MR/MR_wood/wood_detect/model1/MR_budget_reaches_epsg4326.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+MRbudget_reaches2 = gj['features']
+
+
 
 #############################################################
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*MR_*DEM_regrid.tif'))
@@ -150,11 +169,39 @@ label_geotiffs_ds = geotiffs_da.to_dataset('band')
 import mchmm as mc
 
 
+# ## veg, water, sed, wood
+# PM = []; O2M = []; O3M = []
+# ## all - instantanues
+# for counter,g in tqdm(enumerate(MR_bars[7:])):
+#     print("Working on region {}".format(7+counter))
+#     label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
+
+#     A = []
+#     for x, y in zip(label_c.x, label_c.y):
+#         tmp = label_c[1].sel(x=x, y=y).values
+#         a = mc.MarkovChain().from_data(tmp)
+#         A.append(a)
+
+#     ind = np.where(np.array([len(a.observed_matrix) for a in A])==4)[0]
+#     # np.array(A[ind].n_order_matrix)
+#     if len(ind)>0:
+#         PM.append(np.dstack([np.array(A[i].observed_p_matrix) for i in ind]).mean(axis=-1))
+#         O2M.append(np.dstack([np.array(A[i].n_order_matrix(order=2)) for i in ind]).mean(axis=-1))
+#         O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
+#     else:
+#         PM.append(np.nan)
+#         O2M.append(np.nan)
+#         O3M.append(np.nan)
+
+
+# np.savez('summaries/MR_transition_matrices.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
+
+
 ## veg, water, sed, wood
 PM = []; O2M = []; O3M = []
 ## all - instantanues
-for counter,g in tqdm(enumerate(MR_bars[7:])):
-    print("Working on region {}".format(7+counter))
+for counter,g in tqdm(enumerate(MRbudget_reaches_redo)):
+    print("Working on region {}".format(counter))
     label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
 
     A = []
@@ -164,18 +211,23 @@ for counter,g in tqdm(enumerate(MR_bars[7:])):
         A.append(a)
 
     ind = np.where(np.array([len(a.observed_matrix) for a in A])==4)[0]
-    # np.array(A[ind].n_order_matrix)
-    if len(ind)>0:
+
+    try:
+        # np.array(A[ind].n_order_matrix)
         PM.append(np.dstack([np.array(A[i].observed_p_matrix) for i in ind]).mean(axis=-1))
         O2M.append(np.dstack([np.array(A[i].n_order_matrix(order=2)) for i in ind]).mean(axis=-1))
         O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
-    else:
-        PM.append(np.nan)
-        O2M.append(np.nan)
-        O3M.append(np.nan)
+    except:
+        PM.append(np.ones((4,4))*np.nan)
+        O2M.append(np.ones((4,4))*np.nan)
+        O3M.append(np.ones((4,4))*np.nan)
+
+np.savez('summaries/MR_transition_matrices_budgetreaches.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
 
 
-np.savez('summaries/MR_transition_matrices.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
+
+
+
 
 
 # tmp = np.array([[0.34736165, 0.22265122, 0.36679537, 0.06319176],

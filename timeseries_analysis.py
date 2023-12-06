@@ -15,6 +15,18 @@ import pandas as pd
 from area import area
 from skimage.measure import label, regionprops_table
 
+def props_df(image):
+    label_img = label(image)
+
+    props = regionprops_table(label_img, properties=('area',
+                                                    'centroid',
+                                                    'equivalent_diameter_area',
+                                                    'solidity',
+                                                    'axis_major_length',
+                                                    'axis_minor_length'))
+
+    return pd.DataFrame(props)
+
 
 #############################################################
 #############################################################
@@ -161,6 +173,183 @@ LRsed_geotiffs_ds = geotiffs_ds.rename({1: 'sed'})
 print(LRsed_geotiffs_ds.to_array().shape)
 
 
+#################### size dfistributions
+
+### LR
+F_LR=[] 
+for time in tqdm(times):
+    tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+
+    props = props_df(tmp.to_numpy())
+
+    frq, bins, ax = plt.hist(props.area.values, bins=np.linspace(1,40000,100))
+    del ax
+    F_LR.append(frq)
+
+F_LR = np.array(F_LR)
+
+
+### MR
+F_MR=[] 
+for time in tqdm(times):
+    tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+
+    props = props_df(tmp.to_numpy())
+
+    frq, bins, ax = plt.hist(props.area.values, bins=np.linspace(1,40000,100))
+    del ax
+    F_MR.append(frq)
+
+F_MR = np.array(F_MR)
+
+
+# plt.imshow(np.log(F_LR))
+# plt.show()
+
+# plt.imshow(np.log(F_MR))
+# plt.show()
+
+######################################################################
+
+from matplotlib.patches import Rectangle
+
+dists = pd.read_csv('br_dists.csv')
+LR = np.hstack((0,np.array(dists['LR'])))
+MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+## rescale distances
+
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+LR = rescale_array(LR,11,2)
+
+MR = rescale_array(MR[::-1],12,20)
+
+########################################
+
+grid2sqm = 64
+bins=np.linspace(1,40000,100)/grid2sqm
+
+
+########################################
+plt.figure(figsize=(12,7))
+plt.subplots_adjust(wspace=0.2, hspace=0.2)
+
+plt.subplot(221)
+plt.imshow(np.flipud(np.log(F_MR)), cmap='inferno', extent=[bins[0], bins[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label("Log frequency")
+plt.xscale('log')
+plt.title('a)', loc='left')
+plt.xlabel(r"Wood pile or piece area (m$^2$)")
+
+y = F_MR.copy()/np.nansum(F_MR,axis=0)/len(times)
+x = -.5
+r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+mnsz = np.nansum(r_v * bins[1:],axis=1)
+plt.semilogx(mnsz, dt, 'w-o',lw=2)
+
+sig=[]
+for counter in range(len(mnsz)):
+    sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
+
+sig = np.array(sig)
+plt.plot(sig, dt, 'g--',lw=2)
+plt.xlim(5,625)
+plt.gca().invert_yaxis()
+
+
+plt.subplot(222)
+plt.imshow(np.flipud(np.log(F_LR)), cmap='inferno', extent=[bins[0], bins[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label("Log frequency")
+plt.xscale('log')
+plt.title('b)', loc='left')
+plt.xlabel(r"Wood pile or piece area (m$^2$)")
+
+y = F_LR.copy()/np.nansum(F_LR,axis=0)/len(times)
+x = -.5
+r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+mnsz = np.nansum(r_v * bins[1:],axis=1)
+plt.semilogx(mnsz, dt, 'w-o',lw=2)
+
+sig=[]
+for counter in range(len(mnsz)):
+    sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
+
+sig = np.array(sig)
+plt.plot(sig, dt, 'g--',lw=2)
+plt.xlim(5,625)
+plt.gca().invert_yaxis()
+
+
+plt.subplot(212)
+y = F_MR.copy()/np.nansum(F_MR,axis=0)/len(times)
+x = -.5
+r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+mnsz1 = np.nansum(r_v * bins[1:],axis=1)
+plt.plot(mnsz1, dt, 'k-o',lw=1, label='MR')
+
+y = F_LR.copy()/np.nansum(F_LR,axis=0)/len(times)
+x = -.5
+r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+mnsz2 = np.nansum(r_v * bins[1:],axis=1)
+plt.plot(mnsz2, dt, 'r-s',lw=1, label='LR')
+
+
+plt.plot((mnsz1+mnsz2)/2, dt, 'b',lw=2, label='Inter-reach mean')
+
+plt.gca().invert_yaxis()
+plt.xlim(0,35)
+plt.xlabel(r"Wood pile or piece area (m$^2$)")
+plt.title('c)', loc='left')
+plt.legend()
+# plt.show()
+plt.savefig("summaries/MR_LR_wood_size_history.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+# plt.subplot(222)
+# y = F_MR.copy()/np.nansum(F_MR,axis=0)/len(times)
+# x = -.5
+# r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+# mnsz = np.nansum(r_v * bins[1:],axis=1)
+# plt.semilogx(mnsz, dt, 'w-o')
+
+# sig=[]
+# for counter in range(len(mnsz)):
+#     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
+
+# sig = np.array(sig)
+# plt.plot(sig, dt, 'k--')
+# plt.gca().invert_yaxis()
+# plt.xlim(5,625)
+
+# plt.subplot(224)
+# y = F_LR.copy()/np.nansum(F_LR,axis=0)/len(times)
+# mnsz = np.nansum(y * bins[1:],axis=1)
+# plt.semilogx(mnsz, dt, 'r-s')
+
+# sig=[]
+# for counter in range(len(mnsz)):
+#     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
+
+# sig = np.array(sig)
+# plt.plot(sig, dt, 'r--')
+
+# plt.gca().invert_yaxis()
+# plt.xlim(5,625)
+
+
+
+
 # ######################################################
 
 # MR_BR=[]
@@ -247,27 +436,7 @@ with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
     dt = f['dt']
     grid2sqm = f['grid2sqm']
 
-dists = pd.read_csv('br_dists.csv')
-LR = np.hstack((0,np.array(dists['LR'])))
-MR = np.hstack((0,np.array(dists['MR'][:43])))
 
-## rescale distances
-
-
-def rescale_array(dat, mn, mx):
-    """
-    rescales an input dat between mn and mx
-    Code from doodleverse_utils by Daniel Buscombe
-    source: https://github.com/Doodleverse/doodleverse_utils
-    """
-    m = min(dat.flatten())
-    M = max(dat.flatten())
-    return (mx - mn) * (dat - m) / (M - m) + mn
-
-
-LR = rescale_array(LR,11,2)
-
-MR = rescale_array(MR[::-1],12,20)
 
 # ######################################################
 
@@ -313,7 +482,6 @@ with np.load('summaries/Sed_time_series.npz', allow_pickle=True) as f:
 ########################################
 
 ################ PLOTS
-from matplotlib.patches import Rectangle
 
 # summer = [5,6,7,9,11,12,13]
 # winter = [0,1,2,3,4,8,10] ##30 cumecs or above
