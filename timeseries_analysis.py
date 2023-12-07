@@ -241,41 +241,63 @@ grid2sqm = 64
 bins=np.linspace(1,40000,100)/grid2sqm
 
 
+from functools import partial
+
+from skimage.restoration import inpaint
+from skimage.restoration import calibrate_denoiser, denoise_wavelet
+# rescale_sigma=True required to silence deprecation warnings
+_denoise_wavelet = partial(denoise_wavelet, rescale_sigma=True)
+
+mask = np.isfinite(np.log(F_MR))
+F_MRi = inpaint.inpaint_biharmonic(np.log(F_MR), ~mask)
+
+mask = np.isfinite(np.log(F_LR))
+F_LRi = inpaint.inpaint_biharmonic(np.log(F_LR), ~mask)
+
+
+
+from scipy.optimize import curve_fit
+
+def func(x, a, b, c):
+    return a * np.exp(-b * x) + c
+
 ########################################
-plt.figure(figsize=(12,7))
+plt.figure(figsize=(10,13))
 plt.subplots_adjust(wspace=0.2, hspace=0.2)
 
-plt.subplot(221)
-plt.imshow(np.flipud(np.log(F_MR)), cmap='inferno', extent=[bins[0], bins[-1] , dt[0], dt[-1]], aspect='auto')
+plt.subplot(321)
+plt.imshow(np.flipud(F_MRi), cmap='inferno', extent=[bins[0], bins[-1] , dt[0], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label("Log frequency")
 plt.xscale('log')
 plt.title('a)', loc='left')
 plt.xlabel(r"Wood pile or piece area (m$^2$)")
 
-y = F_MR.copy()/np.nansum(F_MR,axis=0)/len(times)
+y = F_MRi.copy()/np.nansum(F_MRi,axis=0)/len(times)
 x = -.5
 r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
 mnsz = np.nansum(r_v * bins[1:],axis=1)
-plt.semilogx(mnsz, dt, 'w-o',lw=2)
+plt.semilogx(mnsz, dt, 'w-o',lw=2, label=r'Mean size')
 
 sig=[]
 for counter in range(len(mnsz)):
     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
 
-sig = np.array(sig)
-plt.plot(sig, dt, 'g--',lw=2)
+sig = np.array(sig)/mnsz
+# plt.plot(sig, dt, 'w-',lw=4)
+plt.plot(sig, dt, 'w--',lw=2, label=r'Coefficient of variation')
 plt.xlim(5,625)
 plt.gca().invert_yaxis()
+plt.legend()
+# plt.gca().annotate("", xy=(2012, 12), xytext=(0, 0), arrowprops=dict(arrowstyle="->"))
 
-
-plt.subplot(222)
-plt.imshow(np.flipud(np.log(F_LR)), cmap='inferno', extent=[bins[0], bins[-1] , dt[0], dt[-1]], aspect='auto')
+plt.subplot(322)
+plt.imshow(np.flipud(F_LRi), cmap='inferno', extent=[bins[0], bins[-1] , dt[0], dt[-1]], aspect='auto')
 # cb=plt.colorbar(); cb.set_label("Log frequency")
 plt.xscale('log')
 plt.title('b)', loc='left')
 plt.xlabel(r"Wood pile or piece area (m$^2$)")
 
-y = F_LR.copy()/np.nansum(F_LR,axis=0)/len(times)
+y = F_LRi.copy()/np.nansum(F_LRi,axis=0)/len(times)
 x = -.5
 r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
 mnsz = np.nansum(r_v * bins[1:],axis=1)
@@ -285,34 +307,43 @@ sig=[]
 for counter in range(len(mnsz)):
     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
 
-sig = np.array(sig)
-plt.plot(sig, dt, 'g--',lw=2)
+sig = np.array(sig)/mnsz
+plt.plot(sig, dt, 'w--',lw=2, label=r'Coefficient of variation')
 plt.xlim(5,625)
 plt.gca().invert_yaxis()
 
+plt.subplot(312)
+plt.plot(bins[1:], np.mean(np.flipud(F_MRi),axis=0), alpha=1, color='k', label='MR')
+plt.plot(bins[1:], np.mean(np.flipud(F_LRi),axis=0),'r--',alpha=1,  label='LR')
+popt, pcov = curve_fit(func, bins[1:], np.mean(np.flipud(F_MRi),axis=0))
+plt.plot(bins[1:], func(bins[1:], *popt), 'b-', label='y='+str(popt[0])[:3]+r'e^{'+str(popt[1])[:5]+'x}'+'+'+str(popt[2])[:4])
+# plt.xscale('log')
+plt.xlabel(r"Mean wood pile or piece area (m$^2$)")
+plt.title('c)', loc='left')
+plt.legend()
 
-plt.subplot(212)
-y = F_MR.copy()/np.nansum(F_MR,axis=0)/len(times)
+plt.subplot(313)
+y = F_MRi.copy()/np.nansum(F_MRi,axis=0)/len(times)
 x = -.5
 r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
 mnsz1 = np.nansum(r_v * bins[1:],axis=1)
-plt.plot(mnsz1, dt, 'k-o',lw=1, label='MR')
+plt.plot(mnsz1, dt, 'ko',lw=1, label='MR')
 
-y = F_LR.copy()/np.nansum(F_LR,axis=0)/len(times)
+y = F_LRi.copy()/np.nansum(F_LRi,axis=0)/len(times)
 x = -.5
 r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
 mnsz2 = np.nansum(r_v * bins[1:],axis=1)
-plt.plot(mnsz2, dt, 'r-s',lw=1, label='LR')
-
+plt.plot(mnsz2, dt, 'rs',lw=1, label='LR')
 
 plt.plot((mnsz1+mnsz2)/2, dt, 'b',lw=2, label='Inter-reach mean')
 
 plt.gca().invert_yaxis()
 plt.xlim(0,35)
 plt.xlabel(r"Wood pile or piece area (m$^2$)")
-plt.title('c)', loc='left')
-plt.legend()
+plt.title('d)', loc='left')
+plt.legend(loc=0)
 # plt.show()
+
 plt.savefig("summaries/MR_LR_wood_size_history.png", dpi=300, bbox_inches="tight")
 plt.close()
 
@@ -478,14 +509,6 @@ with np.load('summaries/Sed_time_series.npz', allow_pickle=True) as f:
     MR_BRarrsed = f['MR_BRarrsed']
 
 
-
-########################################
-
-################ PLOTS
-
-# summer = [5,6,7,9,11,12,13]
-# winter = [0,1,2,3,4,8,10] ##30 cumecs or above
-
 ########################################
 plt.figure(figsize=(16,20))
 plt.subplots_adjust(wspace=0.2, hspace=0.2)
@@ -517,20 +540,7 @@ plt.ylabel(r"Sum of estimated" "\n" r"wood m$^2$")
 plt.gca().invert_xaxis()
 plt.legend()
 plt.title('a) ', loc='left')
-
 plt.text(11,25000,'former\nLake\nAldwell')
-
-# plt.subplot(422)
-# plt.plot(dt[summer],np.sum(MR_BRarr,axis=1)[summer],'k-o', label='MR, Discharge < 30 m$^3$/s')
-# plt.plot(dt[summer],np.sum(LR_BRarr,axis=1)[summer],'r--o', label='LR, Discharge < 30 m$^3$/s')
-# plt.plot(dt[winter],np.sum(MR_BRarr,axis=1)[winter],'k-*', label='MR, Discharge > 30 m$^3$/s')
-# plt.plot(dt[winter],np.sum(LR_BRarr,axis=1)[winter],'r--*', label='LR, Discharge > 30 m$^3$/s')
-# plt.ylabel(r"Sum of estimated" "\n" r"wood m$^2$")
-# plt.legend()
-# plt.plot(dt,np.sum(MR_BRarr,axis=1),'-',color=[0.75,0.75,0.75],lw=2, alpha=0.5)
-# plt.plot(dt,np.sum(LR_BRarr,axis=1),'--', color=[0.25,0.25,0.25],lw=2, alpha=0.5)
-# plt.title('b) ', loc='left')
-
 
 plt.subplot(422)
 plt.plot(MR, np.sum(MR_BRarr+MR_BRarrsed,axis=0),'k-', label='MR')
@@ -548,23 +558,15 @@ plt.title('b) ', loc='left')
 plt.gca().invert_xaxis()
 plt.legend()
 
-
 # plt.show()
 plt.savefig("summaries/sedimentwood_space_plots.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 
-# plt.subplot(424)
-# plt.plot(dt[summer],np.sum(MR_BRarr+MR_BRarrsed,axis=1)[summer],'k-o', label='MR, Discharge < 30 m$^3$/s')
-# plt.plot(dt[summer],np.sum(LR_BRarr+LR_BRarrsed,axis=1)[summer],'r--o', label='LR, Discharge < 30 m$^3$/s')
-# plt.plot(dt[winter],np.sum(MR_BRarr+MR_BRarrsed,axis=1)[winter],'k-*', label='MR, Discharge > 30 m$^3$/s')
-# plt.plot(dt[winter],np.sum(LR_BRarr+LR_BRarrsed,axis=1)[winter],'r--*', label='LR, Discharge > 30 m$^3$/s')
-# plt.ylabel(r"Sum of estimated" "\n" r"sediment m$^2$")
-# plt.legend()
-# plt.plot(dt,np.sum(MR_BRarr+MR_BRarrsed,axis=1),'-',color=[0.75,0.75,0.75],lw=2, alpha=0.5)
-# plt.plot(dt,np.sum(LR_BRarrsed,axis=1),'--', color=[0.25,0.25,0.25],lw=2, alpha=0.5)
-# plt.title('d) ', loc='left')
 
+
+
+####################################################################
 
 
 plt.figure(figsize=(12,12))
@@ -630,23 +632,6 @@ plt.close()
 
 
 
-
-# plt.subplot(425)
-# plt.plot(MR, (np.sum(MR_BRarr[summer,:],axis=0)/(np.sum(MR_BRarrsed[summer,:],axis=0)+np.sum(MR_BRarr[summer,:],axis=0))),'k-', label='MR')
-# plt.plot(LR, (np.sum(LR_BRarr[summer,:],axis=0)/(np.sum(LR_BRarrsed[summer,:],axis=0)+np.sum(LR_BRarr[summer,:],axis=0))),'r--', label='LR')
-# plt.ylabel(r"Ratio of estimated wood and sediment"); plt.xlabel("Distance downstream (km)"); 
-# plt.legend()
-# plt.title(r'e) Discharge < 30 m$^3$/s', loc='left')
-
-# plt.subplot(426)
-# plt.plot(MR, (np.sum(MR_BRarr[winter,:],axis=0)/(np.sum(MR_BRarrsed[winter,:],axis=0)+np.sum(MR_BRarr[winter,:],axis=0))),'k-', label='MR')
-# plt.plot(LR, (np.sum(LR_BRarr[winter,:],axis=0)/(np.sum(LR_BRarrsed[winter,:],axis=0)+np.sum(LR_BRarr[winter,:],axis=0))),'r--', label='LR')
-# plt.ylabel(r"Ratio of estimated wood and sediment"); plt.xlabel("Distance downstream (km)"); 
-# plt.legend()
-# plt.title(r'f) Discharge > 30 m$^3$/s', loc='left')
-
-
-
 #### divide out by area of each BR for a wood concentration\
 A_MR = np.array(A_MR)
 A_LR = np.array(A_LR)
@@ -659,71 +644,261 @@ LR_BRarr_c = LR_BRarr/A_LR
 MR_BRarrsed_c = (MR_BRarrsed+MR_BRarr)/A_MR
 LR_BRarrsed_c = (LR_BRarrsed+LR_BRarr)/A_LR
 
+wvmax = np.maximum(np.max(MR_BRarr_c.flatten()), np.max(LR_BRarr_c.flatten()))
+svmax = np.maximum(np.max(MR_BRarrsed_c.flatten()), np.max(LR_BRarrsed_c.flatten()))
+smax = np.maximum(np.max((MR_BRarrsed+MR_BRarr).flatten()), np.max((LR_BRarrsed+LR_BRarr).flatten()))
+wmax = np.maximum(np.max((MR_BRarr).flatten()), np.max((LR_BRarr).flatten()))
+
 
 ########################################
-plt.figure(figsize=(14,18))
+plt.figure(figsize=(14,20))
 plt.subplots_adjust(wspace=0.2, hspace=0.2)
 
 plt.subplot(421)
-plt.imshow(np.flipud(MR_BRarr), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(MR_BRarr), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=wmax)
 cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
 plt.gca().invert_yaxis()
 plt.title('a)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(422)
-plt.imshow(np.flipud(LR_BRarr), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(LR_BRarr), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto', vmin=0, vmax=wmax)
 cb=plt.colorbar(); cb.set_label(r"Wood area, m$^2$")
 plt.gca().invert_yaxis()
 # plt.title('c) LR', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(423)
-plt.imshow(np.flipud(MR_BRarr+MR_BRarrsed), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(MR_BRarr+MR_BRarrsed), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=smax)
 cb=plt.colorbar(); cb.set_label(r"Sediment area, m$^2$")
 plt.gca().invert_yaxis()
 plt.title('b)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(424)
-plt.imshow(np.flipud(LR_BRarr+LR_BRarrsed), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(LR_BRarr+LR_BRarrsed), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto', vmin=0, vmax=smax)
 cb=plt.colorbar(); cb.set_label(r"Sediment area, m$^2$")
 plt.gca().invert_yaxis()
 # plt.title('d) LR', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(425)
-plt.imshow(np.flipud(MR_BRarr_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(MR_BRarr_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=wvmax)
 cb=plt.colorbar(); cb.set_label("Normalized wood area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
 plt.title('c)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(427)
-plt.imshow(np.flipud(MR_BRarrsed_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(MR_BRarrsed_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=svmax)
 cb=plt.colorbar(); cb.set_label("Normalized sediment area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
 # plt.title('g) MR', loc='left')
 plt.xlabel("River kilometer"); 
 
 plt.subplot(426)
-plt.imshow(np.flipud(LR_BRarr_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(LR_BRarr_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=wvmax)
 cb=plt.colorbar(); cb.set_label("Normalized wood area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
-# plt.title('d)', loc='left')
+plt.title('d)', loc='left')
 # plt.xlabel("Distance downstream (km)"); 
 
 plt.subplot(428)
-plt.imshow(np.flipud(LR_BRarrsed_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto')
+plt.imshow(np.flipud(LR_BRarrsed_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=svmax)
 cb=plt.colorbar(); cb.set_label("Normalized sediment area\n" r"m$^2$/m$^2$")
 plt.gca().invert_yaxis()
-plt.title('d) LR', loc='left');
+# plt.title('d)', loc='left');
 plt.xlabel("River kilometer"); 
-
 
 # plt.show()
 plt.savefig("summaries/sedimentwood_spacetime_mag_conc.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+
+
+########################################
+plt.figure(figsize=(14,20))
+plt.subplots_adjust(wspace=0.2, hspace=0.2)
+
+X = []
+for k in range(MR_BRarr_c.shape[0]):
+    X.append(np.correlate(MR_BRarr_c[k,:], MR_BRarr_c[k,:]+MR_BRarrsed_c[k,:], 'same'))
+
+X = np.vstack(X)
+
+plt.subplot(421)
+plt.imshow(np.flipud(X), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+cb=plt.colorbar(); cb.set_label("Cross-correlation of\nwood and sediment area")
+plt.gca().invert_yaxis()
+plt.title('a)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+X = []
+for k in range(LR_BRarr_c.shape[0]):
+    X.append(np.correlate(LR_BRarr_c[k,:], LR_BRarr_c[k,:]+LR_BRarrsed_c[k,:], 'same'))
+
+X = np.vstack(X)
+
+plt.subplot(422)
+plt.imshow(np.flipud(X), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+cb=plt.colorbar(); cb.set_label("Cross-correlation of\nwood and sediment area")
+plt.gca().invert_yaxis()
+# plt.title('c) LR', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+
+plt.show()
+
+
+# def xcorr_spacetime(dat, tmp):
+#     dat = np.flipud(dat)
+#     alongcorr=[]
+#     for k in np.arange(dat.shape[1]):
+#         alongcorr.append(np.correlate(tmp,dat[:,k],'same'))
+#     return np.vstack(alongcorr)
+
+
+# cMR_BRarr = xcorr_spacetime(MR_BRarr, MR_BRarr[:,22])
+# cLR_BRarr = xcorr_spacetime(LR_BRarr, LR_BRarr[:,26])
+# cMR_BRarrsed = xcorr_spacetime(MR_BRarr+MR_BRarrsed, MR_BRarr[:,22]+MR_BRarrsed[:,22])
+# cLR_BRarrsed = xcorr_spacetime(LR_BRarr+LR_BRarrsed, LR_BRarr[:,26]+LR_BRarrsed[:,26])
+
+
+# ########################################
+# plt.figure(figsize=(14,20))
+# plt.subplots_adjust(wspace=0.2, hspace=0.2)
+
+# plt.subplot(421)
+# plt.imshow(cMR_BRarr/np.max(cMR_BRarr), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# cb=plt.colorbar(); cb.set_label("Cross-correlation\n coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('a)', loc='left')
+# # plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(422)
+# plt.imshow(cLR_BRarr/np.max(cLR_BRarr), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# cb=plt.colorbar(); cb.set_label("Cross-correlation\n coefficient")
+# plt.gca().invert_yaxis()
+# # plt.title('c) LR', loc='left')
+# # plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(423)
+# plt.imshow(cMR_BRarrsed/np.max(cMR_BRarrsed), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# cb=plt.colorbar(); cb.set_label("Cross-correlation\n coefficient")
+# plt.gca().invert_yaxis()
+# plt.title('b)', loc='left')
+# # plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(424)
+# plt.imshow(cLR_BRarrsed/np.max(cLR_BRarrsed), cmap='inferno', extent=[LR[0] , LR[-1], dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# cb=plt.colorbar(); cb.set_label("Cross-correlation\n coefficient")
+# plt.gca().invert_yaxis()
+# # plt.title('d) LR', loc='left')
+# # plt.xlabel("Distance downstream (km)"); 
+
+# # plt.subplot(425)
+# # plt.imshow(np.flipud(MR_BRarr_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# # cb=plt.colorbar(); cb.set_label("Normalized wood area\n" r"m$^2$/m$^2$")
+# # plt.gca().invert_yaxis()
+# # plt.title('c)', loc='left')
+# # # plt.xlabel("Distance downstream (km)"); 
+
+# # plt.subplot(427)
+# # plt.imshow(np.flipud(MR_BRarrsed_c), cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# # cb=plt.colorbar(); cb.set_label("Normalized sediment area\n" r"m$^2$/m$^2$")
+# # plt.gca().invert_yaxis()
+# # # plt.title('g) MR', loc='left')
+# # plt.xlabel("River kilometer"); 
+
+# # plt.subplot(426)
+# # plt.imshow(np.flipud(LR_BRarr_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# # cb=plt.colorbar(); cb.set_label("Normalized wood area\n" r"m$^2$/m$^2$")
+# # plt.gca().invert_yaxis()
+# # plt.title('d)', loc='left')
+# # # plt.xlabel("Distance downstream (km)"); 
+
+# # plt.subplot(428)
+# # plt.imshow(np.flipud(LR_BRarrsed_c), cmap='inferno', extent=[LR[0], LR[-1] , dt[0], dt[-1]], aspect='auto', vmin=0, vmax=1)
+# # cb=plt.colorbar(); cb.set_label("Normalized sediment area\n" r"m$^2$/m$^2$")
+# # plt.gca().invert_yaxis()
+# # # plt.title('d)', loc='left');
+# # plt.xlabel("River kilometer"); 
+
+# plt.show()
+
+
+
+
+
+# MRdx, MRdt = np.gradient(np.flipud(MR_BRarr))
+# LRdx, LRdt = np.gradient(np.flipud(LR_BRarr))
+
+# sMRdx, sMRdt = np.gradient(np.flipud(MR_BRarrsed+MR_BRarr))
+# sLRdx, sLRdt = np.gradient(np.flipud(LR_BRarrsed+LR_BRarr))
+
+
+# ########################################
+# plt.figure(figsize=(14,20))
+# plt.subplots_adjust(wspace=0.2, hspace=0.2)
+
+# plt.subplot(421)
+# plt.imshow(MRdx, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta x$ Wood area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('a)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(422)
+# plt.imshow(MRdt, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta t$ Wood area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('b)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(423)
+# plt.imshow(LRdx, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta x$ Wood area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('c)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(424)
+# plt.imshow(LRdt, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta t$ Wood area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('d)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(425)
+# plt.imshow(sMRdx, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta x$ Sediment area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('a)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(426)
+# plt.imshow(sMRdt, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta t$ Sediment area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('b)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(427)
+# plt.imshow(sLRdx, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta x$ Sediment area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('c)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+
+# plt.subplot(428)
+# plt.imshow(sLRdt, cmap='inferno', extent=[MR[0], MR[-1] , dt[0], dt[-1]], aspect='auto')
+# cb=plt.colorbar(); cb.set_label(r"$\Delta t$ Sediment area, m$^2$")
+# plt.gca().invert_yaxis()
+# plt.title('d)', loc='left')
+# plt.xlabel("Distance downstream (km)"); 
+# plt.show()
+
 
 
 
@@ -746,15 +921,13 @@ ind = np.argsort(dt_sed)
 t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
 t =  np.array([float(d.strftime('%s')) for d in dt])
 
-
-
-
-
 # O_MR = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
 OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
-
 OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
 
+
+
+###################################################
 
 fig, ax = plt.subplots(nrows=2, ncols=3)
 fig.set_size_inches(16,12)
@@ -772,7 +945,6 @@ ax2.set_ylabel(r'Daily Discharge (m$^3$/s)', color='b')
 ax[0][0].set_title('a) ', loc='left')
 
 ax2.plot(dt, OQ, 'b-o') #, legend='Discharge at image acquisition'
-
 
 ###############
 ax[0][1].plot(dt_sed[ind], sed_load['Total sediment discharge (tonnes)'][ind],'-', color=[.5,.5,.5], alpha=0.5)

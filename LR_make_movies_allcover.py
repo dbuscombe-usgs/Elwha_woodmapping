@@ -40,11 +40,11 @@ times = [
     '2017-09-22'
 ]
 
-n_workers = 10
-threads_per_worker = 2
-memory_limit='50GB'
-# start client
-client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
+# n_workers = 10
+# threads_per_worker = 2
+# memory_limit='50GB'
+# # start client
+# client = Client(n_workers=n_workers, threads_per_worker=threads_per_worker, memory_limit=memory_limit)
 
 cwd = os.getcwd()
 
@@ -218,9 +218,140 @@ for counter,g in tqdm(enumerate(LRbudget_reaches_redo)):
         O2M.append(np.ones((4,4))*np.nan)
         O3M.append(np.ones((4,4))*np.nan)
 
-np.savez('summaries/LR_transition_matrices_budgetreaches.npz', LR_PM = PM, LR_O2M = O2M, LR_O3M = O3M)
+np.savez('summaries/LR_transition_matrices_budgetreaches_partial0_41.npz', LR_PM = PM, LR_O2M = O2M, LR_O3M = O3M)
+
+# np.savez('summaries/LR_transition_matrices_budgetreaches.npz', LR_PM = PM, LR_O2M = O2M, LR_O3M = O3M)
 
 
+##################################################################
+
+
+dists = pd.read_csv('br_dists.csv')
+LR = np.hstack((0,np.array(dists['LR'])))
+MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+LR = rescale_array(LR,11,2)
+MR = rescale_array(MR[::-1],12,20)
+
+##################################################################
+
+
+with np.load('summaries/LR_transition_matrices_budgetreaches.npz', allow_pickle=True) as dat:
+    LR_tpm = dict()
+    for k in dat.keys():
+        LR_tpm[k] = dat[k]
+    del dat
+
+with np.load('summaries/MR_transition_matrices_budgetreaches.npz', allow_pickle=True) as dat:
+    MR_tpm = dict()
+    for k in dat.keys():
+        MR_tpm[k] = dat[k]
+    del dat
+
+MR_TPM = []
+for k in MR_tpm['MR_PM']:
+    if np.isnan(k).any():
+        tmp = np.ones((4,4))*np.nan
+        MR_TPM.append(tmp)
+    else:
+        MR_TPM.append(k)
+
+LR_TPM = []
+for k in LR_tpm['LR_PM']:
+    if np.isnan(k).any():
+        tmp = np.ones((4,4))*np.nan
+        LR_TPM.append(tmp)
+    else:
+        LR_TPM.append(k)
+
+
+# LRxy = np.array([np.mean(np.mean(g['coordinates'],axis=0),axis=1).flatten() for g in LRbudget_reaches_redo])
+# LRx = LRxy[:,0]
+# LRy = LRxy[:,1]
+
+LR_wood_pers = [p[3,3] for p in LR_TPM]#
+LR_sed_pers = [p[2,2] for p in  LR_TPM]#MR_tpm['MR_PM']]
+LR_veg_pers = [p[0,0] for p in  LR_TPM]#MR_tpm['MR_PM']]
+LR_water_pers = [p[1,1] for p in  LR_TPM]#MR_tpm['MR_PM']]
+LR_veg_encroach = [p[0,1] for p in  LR_TPM]#MR_tpm['MR_PM']]
+LR_veg_growth = [p[0,2] for p in LR_TPM]# MR_tpm['MR_PM']]
+LR_wood_occl = [p[0,3] for p in  LR_TPM]#MR_tpm['MR_PM']]
+LR_veg_erosion = [p[1,0] for p in  LR_TPM]#MR_tpm['MR_PM']]
+LR_sed_erosion = [p[1,2] for p in  LR_TPM]#MR_tpm['MR_PM']]
+LR_wood_erosion = [p[1,3] for p in  LR_TPM]#MR_tpm['MR_PM']]
+
+MR_wood_pers = [p[3,3] for p in MR_TPM]#
+MR_sed_pers = [p[2,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_pers = [p[0,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_water_pers = [p[1,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_encroach = [p[0,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_growth = [p[0,2] for p in MR_TPM]# MR_tpm['MR_PM']]
+MR_wood_occl = [p[0,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_erosion = [p[1,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_sed_erosion = [p[1,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_wood_erosion = [p[1,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+
+species = ([str(k) for k in range(len(MR_wood_pers))])
+
+MR_weight_counts = {
+    "Wood": np.array(MR_wood_pers),
+    "Sed": np.array(MR_sed_pers),
+    "Veg": np.array(MR_veg_pers),
+    "Water": np.array(MR_water_pers)
+}
+
+LR_weight_counts = {
+    "Wood": np.array(LR_wood_pers),
+    "Sed": np.array(LR_sed_pers),
+    "Veg": np.array(LR_veg_pers),
+    "Water": np.array(LR_water_pers)
+}
+width = 0.5
+
+fig, ax = plt.subplots()
+bottom = np.zeros(len(species))
+
+for boolean, weight_count in MR_weight_counts.items():
+    p = ax.bar(times[1:], weight_count, width, label=boolean, bottom=bottom)
+    bottom += weight_count
+
+ax.set_title("Landcover persistence")
+ax.legend(loc="upper right")
+
+plt.show()
+
+
+fig, ax = plt.subplots()
+bottom = np.zeros(len(species))
+
+for boolean, weight_count in LR_weight_counts.items():
+    p = ax.bar(times[1:], weight_count, width, label=boolean, bottom=bottom)
+    bottom += weight_count
+
+ax.set_title("Landcover persistence")
+ax.legend(loc="upper right")
+
+plt.show()
+
+
+
+
+
+
+
+##################################################################
 
 
 # # np.median(PM,axis=0)
@@ -252,27 +383,6 @@ for k in LR_tpm['LR_PM']:
         LR_TPM.append(tmp)
     else:
         LR_TPM.append(k)
-
-
-
-dists = pd.read_csv('br_dists.csv')
-LR = np.hstack((0,np.array(dists['LR'])))
-MR = np.hstack((0,np.array(dists['MR'][:43])))
-
-
-def rescale_array(dat, mn, mx):
-    """
-    rescales an input dat between mn and mx
-    Code from doodleverse_utils by Daniel Buscombe
-    source: https://github.com/Doodleverse/doodleverse_utils
-    """
-    m = min(dat.flatten())
-    M = max(dat.flatten())
-    return (mx - mn) * (dat - m) / (M - m) + mn
-
-
-LR = rescale_array(LR,11,2)
-MR = rescale_array(MR[::-1],12,20)
 
 
 xy = np.array([np.mean(np.mean(g['coordinates'],axis=0),axis=1).flatten() for g in LR_bars])

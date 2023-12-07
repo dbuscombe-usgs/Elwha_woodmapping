@@ -227,8 +227,55 @@ np.savez('summaries/MR_transition_matrices_budgetreaches.npz', MR_PM = PM, MR_O2
 
 
 
+with np.load('summaries/MR_transition_matrices_budgetreaches.npz', allow_pickle=True) as dat:
+    MR_tpm = dict()
+    for k in dat.keys():
+        MR_tpm[k] = dat[k]
+    del dat
+
+MR_TPM = []
+for k in MR_tpm['MR_PM']:
+    if np.isnan(k).any():
+        tmp = np.ones((4,4))*np.nan
+        MR_TPM.append(tmp)
+    else:
+        MR_TPM.append(k)
 
 
+
+MR_wood_pers = [p[3,3] for p in MR_TPM]#
+MR_sed_pers = [p[2,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_pers = [p[0,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_water_pers = [p[1,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_encroach = [p[0,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_growth = [p[0,2] for p in MR_TPM]# MR_tpm['MR_PM']]
+MR_wood_occl = [p[0,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_veg_erosion = [p[1,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_sed_erosion = [p[1,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+MR_wood_erosion = [p[1,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+
+species = ([str(k) for k in range(len(MR_wood_pers))])
+
+MR_weight_counts = {
+    "Wood": np.array(MR_wood_pers),
+    "Sed": np.array(MR_sed_pers),
+    "Veg": np.array(MR_veg_pers),
+    "Water": np.array(MR_water_pers)
+}
+
+width = 0.5
+
+fig, ax = plt.subplots()
+bottom = np.zeros(len(species))
+
+for boolean, weight_count in MR_weight_counts.items():
+    p = ax.bar(times[1:], weight_count, width, label=boolean, bottom=bottom)
+    bottom += weight_count
+
+ax.set_title("Landcover persistence")
+ax.legend(loc="upper right")
+
+plt.show()
 
 # tmp = np.array([[0.34736165, 0.22265122, 0.36679537, 0.06319176],
 #     [0.05255255, 0.62374517, 0.29045474, 0.03324753],
