@@ -1,15 +1,6 @@
 
 ## Dan Buscombe, Marda Science
-## Apr, 2023
-##
-## Does this:
-## 1. 
-## 2. 
-## 3. 
-## 4. 
-## 5. 
-## 6. 
-
+## 2023
 import json, os
 import rioxarray
 import xarray as xr 

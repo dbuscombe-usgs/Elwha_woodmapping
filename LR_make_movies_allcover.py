@@ -1,6 +1,5 @@
 ## Dan Buscombe, Marda Science
-## Apr, 2023
-##
+## 2023
 
 import json, os
 import rioxarray
@@ -11,10 +10,10 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors
-from scipy import ndimage
+from matplotlib.colors import ListedColormap
+
 from skimage.exposure import match_histograms
 import pandas as pd 
-import mchmm as mc
 #############################################################
 #############################################################
 #############################################################
@@ -84,11 +83,6 @@ LR_bars = [a['geometry'] for a in gj['features']]
 
 fourclass_files = sorted(glob('../results/LR/LR_all/model_out/*_4classMosaic.tif'))
 
-# fourclass_files_filt = []
-# for t in times:
-#     # t = t.replace('-','')
-#     tmp = [d for d in fourclass_files if t in d]
-#     fourclass_files_filt.append(tmp[0])
 
 #############################################################
 # Load in and concatenate all individual GeoTIFFs
@@ -99,11 +93,6 @@ label_geotiffs_ds = geotiffs_da.to_dataset('band')
 
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*LR_*DEM_regrid.tif'))
 
-# dem_files_filt = []
-# for t in times:
-#     t = t.replace('-','')
-#     tmp = [d for d in dem_files if t in d]
-#     dem_files_filt.append(tmp[0])
 
 geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
                         dim=time_var)
@@ -143,9 +132,6 @@ print(im_geotiffs_ds.to_array().shape)
 
 ### reference image (bright)
 reference = im_geotiffs_ds.sel(time='2016-07-14')
-# reference = im_geotiffs_ds.sel(time='2015-03-03')
-
-
 
 ## budget reaches
 brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches.geojson'
@@ -163,10 +149,8 @@ with open(brfile) as f:
 LRbudget_reaches2 = gj['features']
 
 
-
-
 #############################################################
-#### focused movies
+####  movies
 
 ### wood chronology - different color per time
 cmap = plt.get_cmap('inferno', len(times))
@@ -291,8 +275,6 @@ for counter,g in tqdm(enumerate(LR_bars)):
 
 
 
-
-
 sed_mask = (label_geotiffs_ds[1]==3).astype(np.float)
 
 
@@ -339,8 +321,6 @@ for counter,g in tqdm(enumerate(LR_bars)):
         del sed_da
 
 
-
-
 ## sediment age (sum)
 for counter,g in tqdm(enumerate(LR_bars)):
     print("Working on region {}".format(counter))
@@ -377,7 +357,6 @@ for counter,g in tqdm(enumerate(LR_bars)):
         plt.close()
 
 
-from matplotlib.colors import ListedColormap
 cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
 
 ## all - instantanues

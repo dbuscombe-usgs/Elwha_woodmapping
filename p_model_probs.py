@@ -1,7 +1,5 @@
-
 ## Dan Buscombe, Marda Science
-## Apr, 2023
-##
+## 2023
 
 import json, os
 import rioxarray
@@ -72,16 +70,6 @@ with open(r) as f:
 LR_bars = [a['geometry'] for a in gj['features']]
 
 
-# fourclass_files = sorted(glob('../results/LR/LR_all/model_out/*_4classMosaic.tif'))
-
-# #############################################################
-# # Load in and concatenate all individual GeoTIFFs
-# geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in fourclass_files],
-#                         dim=time_var)
-# # Covert our xarray.DataArray into a xarray.Dataset
-# label_geotiffs_ds = geotiffs_da.to_dataset('band')
-
-
 #############################################################
 im_files = sorted(glob('../raw_data/LR/LR_orthos_orig/Elwha_LR_*_regrid.tif'))
 im_files = [i for i in im_files if 'bin' not in i]
@@ -106,39 +94,37 @@ print(im_geotiffs_ds.to_array().shape)
 
 ### reference image (bright)
 reference = im_geotiffs_ds.sel(time='2016-07-14')
-# reference = im_geotiffs_ds.sel(time='2015-03-03')
 
+cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
 
-# cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
+## all - instantanues
+for counter,g in tqdm(enumerate(LR_bars)):
+    print("Working on region {}".format(counter))
 
-# ## all - instantanues
-# for counter,g in tqdm(enumerate(LR_bars)):
-#     print("Working on region {}".format(counter))
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
 
-#     ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-#     im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-#     label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
-#     tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-#     reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
 
-#     for inner_counter, time in enumerate(times):
-#         print("Working on time {}".format(time))
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        label_da = label_c[1].sel(time=time)
+        label_da = label_da.transpose().to_numpy()
 
-#         im_da = tmp_da.sel(time=time).transpose()/255.
-#         refim_da = reftmp_da.transpose()/255.
-#         matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
-#         label_da = label_c[1].sel(time=time)
-#         label_da = label_da.transpose().to_numpy()
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+        ax1.imshow(label_da, cmap=cmap, alpha=0.3)
+        plt.title(time)
+        plt.axis('off')
 
-#         fig1, ax1 = plt.subplots()
-#         ax1.imshow(matched)
-#         ax1.imshow(label_da, cmap=cmap, alpha=0.3)
-#         plt.title(time)
-#         plt.axis('off')
-
-#         # plt.show()
-#         plt.savefig(f"../results/LR/LR_Bars_All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-#         plt.close()
-#         del label_da
+        # plt.show()
+        plt.savefig(f"../results/LR/LR_Bars_All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del label_da
 
 

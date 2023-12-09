@@ -1,4 +1,5 @@
-
+## Dan Buscombe, Marda Science
+## 2023
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation

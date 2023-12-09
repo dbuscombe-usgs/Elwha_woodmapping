@@ -1,4 +1,5 @@
-
+## Dan Buscombe, Marda Science
+## 2023
 import numpy as np 
 from matplotlib import pyplot as plt 
 from glob import glob 

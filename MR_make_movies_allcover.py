@@ -9,16 +9,11 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors
-from scipy import ndimage
 from skimage.exposure import match_histograms
 import pandas as pd 
-import geopandas as gpd
 
-import mchmm as mc
-import seaborn as sns
 from matplotlib.colors import ListedColormap
 
-#############################################################
 #############################################################
 #############################################################
 #################### user inputs 
@@ -51,9 +46,6 @@ times = [
 
 cwd = os.getcwd()
 
-run_bash = False
-
-
 # Create variable used for time axis
 time_var = xr.Variable('time',times)
 
@@ -84,8 +76,6 @@ with open(r) as f:
     gj = json.load(f)
 MR_bars = [a['geometry'] for a in gj['features']]
 
-
-
 ## budget reaches
 brfile = '../results/MR/MR_wood/wood_detect/model1/MR_budget_reaches.geojson'
 with open(brfile) as f:
@@ -102,15 +92,8 @@ with open(brfile) as f:
 MRbudget_reaches2 = gj['features']
 
 
-
 #############################################################
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/*MR_*DEM_regrid.tif'))
-
-# dem_files_filt = []
-# for t in times:
-#     t = t.replace('-','')
-#     tmp = [d for d in dem_files if t in d]
-#     dem_files_filt.append(tmp[0])
 
 geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
                         dim=time_var)
@@ -150,17 +133,9 @@ print(im_geotiffs_ds.to_array().shape)
 
 ### reference image (bright)
 reference = im_geotiffs_ds.sel(time='2016-07-14')
-# reference = im_geotiffs_ds.sel(time='2015-03-03')
-
 
 #############################################################
 fourclass_files = sorted(glob('../results/MR/MR_all/model_out/*_4classMosaic.tif'))
-
-# fourclass_files_filt = []
-# for t in times:
-#     # t = t.replace('-','')
-#     tmp = [d for d in fourclass_files if t in d]
-#     fourclass_files_filt.append(tmp[0])
 
 #############################################################
 # Load in and concatenate all individual GeoTIFFs
@@ -168,6 +143,293 @@ geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtyp
                         dim=time_var)
 # Covert our xarray.DataArray into a xarray.Dataset
 label_geotiffs_ds = geotiffs_da.to_dataset('band')
+
+
+## budget reaches
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+LRbudget_reaches = gj['features']
+
+LRbudget_reaches_redo = []
+for b in LRbudget_reaches:
+    LRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
+
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches_epsg4326.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+LRbudget_reaches2 = gj['features']
+
+
+##################################################################
+
+
+
+#############################################################
+#### focused movies
+
+### wood chronology - different color per time
+cmap = plt.get_cmap('inferno', len(times))
+custom_palette = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
+bounds=[0,1]
+
+mask = (label_geotiffs_ds[1]==4).astype(np.float)
+
+
+## wood - chronology
+for counter,g in tqdm(enumerate(MR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = mask.rio.clip([g], mask.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        wood_da = wood_c.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        # wood_da = ndimage.maximum_filter(wood_da, size=10)
+        wood_da[wood_da<=0] = np.nan
+
+        if inner_counter==0:
+            fig1, ax1 = plt.subplots()
+            ax1.imshow(matched)
+        # ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
+        # ax1.imshow(wood_da, 'Reds_r', alpha=0.25)
+
+        # make a color map of fixed colors
+        cmap_tmp = matplotlib.colors.ListedColormap(['white', custom_palette[inner_counter]])
+        norm = matplotlib.colors.BoundaryNorm(bounds, cmap.N)
+        ax1.imshow(wood_da, interpolation='nearest', cmap=cmap_tmp, norm=norm, alpha=0.5)
+        plt.axis('off')
+        # plt.title(time)
+
+        # plt.show()
+        plt.savefig(f"../results/MR/MR_Bars_Wood_chron_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        # plt.close()
+        del wood_da
+
+    plt.close()
+
+
+
+
+sed_mask = (label_geotiffs_ds[1]==3).astype(np.float)
+
+
+## wood + sediment
+for counter,g in tqdm(enumerate(MR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = mask.rio.clip([g], mask.rio.crs)
+    sed_c = sed_mask.rio.clip([g], sed_mask.rio.crs)
+
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        wood_da = wood_c.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        wood_da[wood_da<=0] = np.nan
+
+        sed_da = sed_c.sel(time=time)
+        sed_da = sed_da.transpose().to_numpy().astype('float')
+        sed_da[sed_da<=0] = np.nan
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+        ax1.imshow(sed_da, alpha=0.75, cmap='YlOrRd')
+
+        # ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
+        # wood_da[wood_da==0] = np.nan
+        ax1.imshow(wood_da, 'Reds_r', alpha=0.5)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/MR/MR_Bars_Wood_Sed_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del wood_da
+        del sed_da
+
+
+
+
+## sediment age (sum)
+for counter,g in tqdm(enumerate(MR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    sed_c = sed_mask.rio.clip([g], sed_mask.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    sum_array = []
+    for inner_counter, time in enumerate(times):
+        # print("Working on time {}".format(time))
+        sed_da = sed_c.sel(time=time)
+        sed_da = sed_da.transpose().to_numpy()
+        sum_array.append(sed_da)
+
+    sum_ = np.cumsum(np.dstack(sum_array),axis=-1)
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+
+        ax1.imshow(sum_[:,:,inner_counter], 'inferno', alpha=0.5)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/MR/MR_Bars_Sed_age_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+
+cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
+
+## all - instantanues
+for counter,g in tqdm(enumerate(MR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        label_da = label_c[1].sel(time=time)
+        label_da = label_da.transpose().to_numpy()
+        # label_da[label_da<=0] = np.nan
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+        ax1.imshow(label_da, cmap=cmap, alpha=0.3)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/MR/MR_Bars_All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del label_da
+
+
+## wood - age
+for counter,g in tqdm(enumerate(MR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = mask.rio.clip([g], mask.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    sum_array = []
+    for inner_counter, time in enumerate(times):
+        # print("Working on time {}".format(time))
+        wood_da = wood_c.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        # wood_da = ndimage.maximum_filter(wood_da, size=10)
+        wood_da[wood_da<=0] = np.nan
+        sum_array.append(wood_da)
+
+    sum_ = np.nancumsum(np.dstack(sum_array),axis=-1)
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+
+        ax1.imshow(sum_[:,:,inner_counter], 'inferno', alpha=0.5)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/MR/MR_Bars_Wood_age_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+## wood - instantanues
+for counter,g in tqdm(enumerate(MR_bars)):
+    print("Working on region {}".format(counter))
+
+    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
+    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
+    wood_c = mask.rio.clip([g], mask.rio.crs)
+    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
+    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
+
+    for inner_counter, time in enumerate(times):
+        print("Working on time {}".format(time))
+
+        im_da = tmp_da.sel(time=time).transpose()/255.
+        refim_da = reftmp_da.transpose()/255.
+        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
+        wood_da = wood_c.sel(time=time)
+        wood_da = wood_da.transpose().to_numpy()
+        # wood_da = ndimage.maximum_filter(wood_da, size=10)
+        wood_da[wood_da<=0] = np.nan
+
+        fig1, ax1 = plt.subplots()
+        ax1.imshow(matched)
+        # ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
+        ax1.imshow(wood_da, 'Reds_r', alpha=0.5)
+        plt.title(time)
+        plt.axis('off')
+
+        # plt.show()
+        plt.savefig(f"../results/MR/MR_Bars_Wood_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        del wood_da
+
+
+
+
+# dists = pd.read_csv('br_dists.csv')
+# LR = np.hstack((0,np.array(dists['LR'])))
+# MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+
+# def rescale_array(dat, mn, mx):
+#     """
+#     rescales an input dat between mn and mx
+#     Code from doodleverse_utils by Daniel Buscombe
+#     source: https://github.com/Doodleverse/doodleverse_utils
+#     """
+#     m = min(dat.flatten())
+#     M = max(dat.flatten())
+#     return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+# LR = rescale_array(LR,11,2)
+# MR = rescale_array(MR[::-1],12,20)
 
 
 ###############################
@@ -229,44 +491,6 @@ label_geotiffs_ds = geotiffs_da.to_dataset('band')
 
 # np.savez('summaries/MR_transition_matrices_budgetreaches.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
 
-
-## budget reaches
-brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches.geojson'
-with open(brfile) as f:
-    gj = json.load(f)
-LRbudget_reaches = gj['features']
-
-LRbudget_reaches_redo = []
-for b in LRbudget_reaches:
-    LRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
-
-brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches_epsg4326.geojson'
-with open(brfile) as f:
-    gj = json.load(f)
-LRbudget_reaches2 = gj['features']
-
-
-##################################################################
-
-
-dists = pd.read_csv('br_dists.csv')
-LR = np.hstack((0,np.array(dists['LR'])))
-MR = np.hstack((0,np.array(dists['MR'][:43])))
-
-
-def rescale_array(dat, mn, mx):
-    """
-    rescales an input dat between mn and mx
-    Code from doodleverse_utils by Daniel Buscombe
-    source: https://github.com/Doodleverse/doodleverse_utils
-    """
-    m = min(dat.flatten())
-    M = max(dat.flatten())
-    return (mx - mn) * (dat - m) / (M - m) + mn
-
-
-LR = rescale_array(LR,11,2)
-MR = rescale_array(MR[::-1],12,20)
 
 
 # ############### MR
@@ -884,257 +1108,6 @@ MR = rescale_array(MR[::-1],12,20)
 
 # plt.savefig("summaries/example_TPM.png", dpi=300, bbox_inches="tight")
 # plt.close()
-
-
-#############################################################
-#### focused movies
-
-### wood chronology - different color per time
-cmap = plt.get_cmap('inferno', len(times))
-custom_palette = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
-bounds=[0,1]
-
-mask = (label_geotiffs_ds[1]==4).astype(np.float)
-
-
-## wood - chronology
-for counter,g in tqdm(enumerate(MR_bars)):
-    print("Working on region {}".format(counter))
-
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    wood_c = mask.rio.clip([g], mask.rio.crs)
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
-
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
-
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
-        wood_da = wood_c.sel(time=time)
-        wood_da = wood_da.transpose().to_numpy()
-        # wood_da = ndimage.maximum_filter(wood_da, size=10)
-        wood_da[wood_da<=0] = np.nan
-
-        if inner_counter==0:
-            fig1, ax1 = plt.subplots()
-            ax1.imshow(matched)
-        # ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
-        # ax1.imshow(wood_da, 'Reds_r', alpha=0.25)
-
-        # make a color map of fixed colors
-        cmap_tmp = matplotlib.colors.ListedColormap(['white', custom_palette[inner_counter]])
-        norm = matplotlib.colors.BoundaryNorm(bounds, cmap.N)
-        ax1.imshow(wood_da, interpolation='nearest', cmap=cmap_tmp, norm=norm, alpha=0.5)
-        plt.axis('off')
-        # plt.title(time)
-
-        # plt.show()
-        plt.savefig(f"../results/MR/MR_Bars_Wood_chron_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        # plt.close()
-        del wood_da
-
-    plt.close()
-
-
-
-
-sed_mask = (label_geotiffs_ds[1]==3).astype(np.float)
-
-
-## wood + sediment
-for counter,g in tqdm(enumerate(MR_bars)):
-    print("Working on region {}".format(counter))
-
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    wood_c = mask.rio.clip([g], mask.rio.crs)
-    sed_c = sed_mask.rio.clip([g], sed_mask.rio.crs)
-
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
-
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
-
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
-        wood_da = wood_c.sel(time=time)
-        wood_da = wood_da.transpose().to_numpy()
-        wood_da[wood_da<=0] = np.nan
-
-        sed_da = sed_c.sel(time=time)
-        sed_da = sed_da.transpose().to_numpy().astype('float')
-        sed_da[sed_da<=0] = np.nan
-
-        fig1, ax1 = plt.subplots()
-        ax1.imshow(matched)
-        ax1.imshow(sed_da, alpha=0.75, cmap='YlOrRd')
-
-        # ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
-        # wood_da[wood_da==0] = np.nan
-        ax1.imshow(wood_da, 'Reds_r', alpha=0.5)
-        plt.title(time)
-        plt.axis('off')
-
-        # plt.show()
-        plt.savefig(f"../results/MR/MR_Bars_Wood_Sed_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-        del wood_da
-        del sed_da
-
-
-
-
-## sediment age (sum)
-for counter,g in tqdm(enumerate(MR_bars)):
-    print("Working on region {}".format(counter))
-
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    sed_c = sed_mask.rio.clip([g], sed_mask.rio.crs)
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
-
-    sum_array = []
-    for inner_counter, time in enumerate(times):
-        # print("Working on time {}".format(time))
-        sed_da = sed_c.sel(time=time)
-        sed_da = sed_da.transpose().to_numpy()
-        sum_array.append(sed_da)
-
-    sum_ = np.cumsum(np.dstack(sum_array),axis=-1)
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
-
-        fig1, ax1 = plt.subplots()
-        ax1.imshow(matched)
-
-        ax1.imshow(sum_[:,:,inner_counter], 'inferno', alpha=0.5)
-        plt.title(time)
-        plt.axis('off')
-
-        # plt.show()
-        plt.savefig(f"../results/MR/MR_Bars_Sed_age_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-
-from matplotlib.colors import ListedColormap
-cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
-
-## all - instantanues
-for counter,g in tqdm(enumerate(MR_bars)):
-    print("Working on region {}".format(counter))
-
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
-
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
-
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
-        label_da = label_c[1].sel(time=time)
-        label_da = label_da.transpose().to_numpy()
-        # label_da[label_da<=0] = np.nan
-
-        fig1, ax1 = plt.subplots()
-        ax1.imshow(matched)
-        ax1.imshow(label_da, cmap=cmap, alpha=0.3)
-        plt.title(time)
-        plt.axis('off')
-
-        # plt.show()
-        plt.savefig(f"../results/MR/MR_Bars_All_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-        del label_da
-
-
-## wood - age
-for counter,g in tqdm(enumerate(MR_bars)):
-    print("Working on region {}".format(counter))
-
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    wood_c = mask.rio.clip([g], mask.rio.crs)
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
-
-    sum_array = []
-    for inner_counter, time in enumerate(times):
-        # print("Working on time {}".format(time))
-        wood_da = wood_c.sel(time=time)
-        wood_da = wood_da.transpose().to_numpy()
-        # wood_da = ndimage.maximum_filter(wood_da, size=10)
-        wood_da[wood_da<=0] = np.nan
-        sum_array.append(wood_da)
-
-    sum_ = np.nancumsum(np.dstack(sum_array),axis=-1)
-
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
-
-        fig1, ax1 = plt.subplots()
-        ax1.imshow(matched)
-
-        ax1.imshow(sum_[:,:,inner_counter], 'inferno', alpha=0.5)
-        plt.title(time)
-        plt.axis('off')
-
-        # plt.show()
-        plt.savefig(f"../results/MR/MR_Bars_Wood_age_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-## wood - instantanues
-for counter,g in tqdm(enumerate(MR_bars)):
-    print("Working on region {}".format(counter))
-
-    ref_c = reference.rio.clip([g], avim_ds.rio.crs)
-    im_c = im_geotiffs_ds.rio.clip([g], avim_ds.rio.crs)
-    wood_c = mask.rio.clip([g], mask.rio.crs)
-    tmp_da = xr.concat([im_c.red,im_c.green,im_c.blue],dim=('x','x','x'))
-    reftmp_da = xr.concat([ref_c.red,ref_c.green,ref_c.blue],dim=('x','x','x'))
-
-    for inner_counter, time in enumerate(times):
-        print("Working on time {}".format(time))
-
-        im_da = tmp_da.sel(time=time).transpose()/255.
-        refim_da = reftmp_da.transpose()/255.
-        matched = match_histograms(im_da.to_numpy(), refim_da.to_numpy(), channel_axis=-1)
-        wood_da = wood_c.sel(time=time)
-        wood_da = wood_da.transpose().to_numpy()
-        # wood_da = ndimage.maximum_filter(wood_da, size=10)
-        wood_da[wood_da<=0] = np.nan
-
-        fig1, ax1 = plt.subplots()
-        ax1.imshow(matched)
-        # ax1.contour(wood_da, colors='k') #,[-99,0,99], color='r')#, 
-        ax1.imshow(wood_da, 'Reds_r', alpha=0.5)
-        plt.title(time)
-        plt.axis('off')
-
-        # plt.show()
-        plt.savefig(f"../results/MR/MR_Bars_Wood_inst_movie_{counter}_time_{time}.png", dpi=300, bbox_inches='tight')
-        plt.close()
-        del wood_da
-
-
-
-
-
 
 
 # import json, os

@@ -1,6 +1,5 @@
 ## Dan Buscombe, Marda Science
-## Apr-June, 2023
-#
+## 2023
 
 import json, os
 import rioxarray
@@ -14,6 +13,31 @@ from datetime import datetime
 import pandas as pd
 from area import area
 from skimage.measure import label, regionprops_table
+from functools import partial
+
+from skimage.restoration import inpaint
+from skimage.restoration import denoise_wavelet
+from scipy.optimize import curve_fit
+
+from matplotlib.patches import Rectangle
+
+# rescale_sigma=True required to silence deprecation warnings
+_denoise_wavelet = partial(denoise_wavelet, rescale_sigma=True)
+
+
+def func(x, a, b, c):
+    return a * np.exp(-b * x) + c
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
 
 def props_df(image):
     label_img = label(image)
@@ -203,36 +227,14 @@ for time in tqdm(times):
 F_MR = np.array(F_MR)
 
 
-# plt.imshow(np.log(F_LR))
-# plt.show()
-
-# plt.imshow(np.log(F_MR))
-# plt.show()
-
-######################################################################
-
-from matplotlib.patches import Rectangle
+#####################################################################
 
 dists = pd.read_csv('br_dists.csv')
 LR = np.hstack((0,np.array(dists['LR'])))
 MR = np.hstack((0,np.array(dists['MR'][:43])))
 
 ## rescale distances
-
-
-def rescale_array(dat, mn, mx):
-    """
-    rescales an input dat between mn and mx
-    Code from doodleverse_utils by Daniel Buscombe
-    source: https://github.com/Doodleverse/doodleverse_utils
-    """
-    m = min(dat.flatten())
-    M = max(dat.flatten())
-    return (mx - mn) * (dat - m) / (M - m) + mn
-
-
 LR = rescale_array(LR,11,2)
-
 MR = rescale_array(MR[::-1],12,20)
 
 ########################################
@@ -240,26 +242,12 @@ MR = rescale_array(MR[::-1],12,20)
 grid2sqm = 64
 bins=np.linspace(1,40000,100)/grid2sqm
 
-
-from functools import partial
-
-from skimage.restoration import inpaint
-from skimage.restoration import calibrate_denoiser, denoise_wavelet
-# rescale_sigma=True required to silence deprecation warnings
-_denoise_wavelet = partial(denoise_wavelet, rescale_sigma=True)
-
 mask = np.isfinite(np.log(F_MR))
 F_MRi = inpaint.inpaint_biharmonic(np.log(F_MR), ~mask)
 
 mask = np.isfinite(np.log(F_LR))
 F_LRi = inpaint.inpaint_biharmonic(np.log(F_LR), ~mask)
 
-
-
-from scipy.optimize import curve_fit
-
-def func(x, a, b, c):
-    return a * np.exp(-b * x) + c
 
 ########################################
 plt.figure(figsize=(10,13))
@@ -347,110 +335,6 @@ plt.legend(loc=0)
 plt.savefig("summaries/MR_LR_wood_size_history.png", dpi=300, bbox_inches="tight")
 plt.close()
 
-# plt.subplot(222)
-# y = F_MR.copy()/np.nansum(F_MR,axis=0)/len(times)
-# x = -.5
-# r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
-# mnsz = np.nansum(r_v * bins[1:],axis=1)
-# plt.semilogx(mnsz, dt, 'w-o')
-
-# sig=[]
-# for counter in range(len(mnsz)):
-#     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
-
-# sig = np.array(sig)
-# plt.plot(sig, dt, 'k--')
-# plt.gca().invert_yaxis()
-# plt.xlim(5,625)
-
-# plt.subplot(224)
-# y = F_LR.copy()/np.nansum(F_LR,axis=0)/len(times)
-# mnsz = np.nansum(y * bins[1:],axis=1)
-# plt.semilogx(mnsz, dt, 'r-s')
-
-# sig=[]
-# for counter in range(len(mnsz)):
-#     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
-
-# sig = np.array(sig)
-# plt.plot(sig, dt, 'r--')
-
-# plt.gca().invert_yaxis()
-# plt.xlim(5,625)
-
-
-
-
-# ######################################################
-
-# MR_BR=[]
-# for time in times:
-#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(MRbudget_reaches_redo):
-#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#         result = (wood_c).sum().compute().to_numpy() 
-#         MR_BR.append(float(result))
-
-# #######################################################
-
-# LR_BR=[]
-# for time in times:
-#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(LRbudget_reaches_redo):
-#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#         result = (wood_c).sum().compute().to_numpy() 
-#         LR_BR.append(float(result))
-
-
-# LR_BRarr = np.vstack(LR_BR).reshape(len(times),-1)/grid2sqm
-# MR_BRarr = np.vstack(MR_BR).reshape(len(times),-1)/grid2sqm
-
-# np.savez('Wood_time_series.npz', LR_BRarr = LR_BRarr, MR_BRarr = MR_BRarr, times=times, dt=dt, grid2sqm=grid2sqm)
-
-
-######################################################
-
-# MR_BR_small=[]
-# MR_BR_large=[]
-# for time in times:
-#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(MRbudget_reaches_redo):
-#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#         label_img = label(wood_c==1)
-#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
-#         a = props['area'][np.where(props['area']<100000)[0]]
-#         result2 = np.sum(a[np.where(a>4096)[0]])
-#         result1 = np.sum(a[np.where(a<=4096)[0]])
-#         MR_BR_small.append(float(result1))
-#         MR_BR_large.append(float(result2))
-
-# #######################################################
-
-# LR_BR_small=[]
-# LR_BR_large=[]
-# for time in times:
-#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(LRbudget_reaches_redo):
-#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#         label_img = label(wood_c==1)
-#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
-#         a = props['area'][np.where(props['area']<100000)[0]]
-#         result2 = np.sum(a[np.where(a>4096)[0]])
-#         result1 = np.sum(a[np.where(a<=4096)[0]])
-#         LR_BR_small.append(float(result1))
-#         LR_BR_large.append(float(result2))
-
-
-
-# LR_BRarr_small = np.vstack(LR_BR_small).reshape(len(times),-1)/grid2sqm
-# MR_BRarr_small = np.vstack(MR_BR_small).reshape(len(times),-1)/grid2sqm
-
-# LR_BRarr_large = np.vstack(LR_BR_large).reshape(len(times),-1)/grid2sqm
-# MR_BRarr_large = np.vstack(MR_BR_large).reshape(len(times),-1)/grid2sqm
-
-# np.savez('summaries/Wood_time_series_largepieces_smallpieces.npz', LR_BRarr_large = LR_BRarr_large, MR_BRarr_large = MR_BRarr_large, LR_BRarr_small = LR_BRarr_small, MR_BRarr_small = MR_BRarr_small, times=times, dt=dt, grid2sqm=grid2sqm)
-
-
 
 with np.load('summaries/Wood_time_series_largepieces_smallpieces.npz', allow_pickle=True) as f:
     LR_BRarr_large = f['LR_BRarr_large']
@@ -467,42 +351,6 @@ with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
     dt = f['dt']
     grid2sqm = f['grid2sqm']
 
-
-
-# ######################################################
-
-# MR_BRsed=[]
-# for time in times:
-#     tmp1 = MRsed_geotiffs_ds.sed.sel(time=time)
-#     tmp2 = MRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(MRbudget_reaches_redo):
-#         sed_c = tmp1.rio.clip([g], tmp1.rio.crs)
-#         wood_c = tmp2.rio.clip([g], tmp2.rio.crs)
-
-#         result = (sed_c).sum().compute().to_numpy() + (wood_c).sum().compute().to_numpy() 
-#         MR_BRsed.append(float(result))
-#         del wood_c, sed_c
-#     del tmp1, tmp2 
-
-# #######################################################
-
-# LR_BRsed=[]
-# for time in times:
-#     tmp1 = LRsed_geotiffs_ds.sed.sel(time=time)
-#     tmp2 = LRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(LRbudget_reaches_redo):
-#         sed_c = tmp1.rio.clip([g], tmp1.rio.crs)
-#         wood_c = tmp2.rio.clip([g], tmp2.rio.crs)
-
-#         result = (sed_c).sum().compute().to_numpy() + (wood_c).sum().compute().to_numpy() 
-#         LR_BRsed.append(float(result))
-#         del wood_c, sed_c
-#     del tmp1, tmp2 
-
-# LR_BRarrsed = np.vstack(LR_BRsed).reshape(len(times),-1)/grid2sqm
-# MR_BRarrsed = np.vstack(MR_BRsed).reshape(len(times),-1)/grid2sqm
-
-# np.savez('summaries/Sed_time_series.npz', LR_BRarrsed = LR_BRarrsed, MR_BRarrsed = MR_BRarrsed, times=times, dt=dt, grid2sqm=grid2sqm)
 
 with np.load('summaries/Sed_time_series.npz', allow_pickle=True) as f:
     LR_BRarrsed = f['LR_BRarrsed']
@@ -751,6 +599,289 @@ plt.gca().invert_yaxis()
 plt.show()
 
 
+
+
+##############################################################
+
+sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
+
+sed_load = sed_load[['Day',
+'Daily Discharge (m3/s)',
+'Total sediment discharge (tonnes)',
+'Ave fraction fines (based on two turbidimeters)']]
+
+
+dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
+dt_sed = np.array(dt_sed)
+
+ind = np.argsort(dt_sed)
+
+t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
+t =  np.array([float(d.strftime('%s')) for d in dt])
+
+# O_MR = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
+OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
+
+
+
+###################################################
+
+fig, ax = plt.subplots(nrows=2, ncols=3)
+fig.set_size_inches(16,12)
+plt.subplots_adjust(wspace=0.6, hspace=0.2)
+
+####### flow
+# plt.subplot(221)
+ax[0][0].plot(dt, np.sum(MR_BRarr,axis=1),'k-', label='MR wood')
+ax[0][0].plot(dt, np.sum(LR_BRarr,axis=1),'r--', label='LR wood')
+ax[0][0].set_ylabel('Total wood area (m2)')
+
+ax2 = ax[0][0].twinx()
+ax2.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'b-', alpha=0.5, label='Daily discharge')
+ax2.set_ylabel(r'Daily Discharge (m$^3$/s)', color='b')
+ax[0][0].set_title('a) ', loc='left')
+
+ax2.plot(dt, OQ, 'b-o') #, legend='Discharge at image acquisition'
+
+###############
+ax[0][1].plot(dt_sed[ind], sed_load['Total sediment discharge (tonnes)'][ind],'-', color=[.5,.5,.5], alpha=0.5)
+ax[0][1].set_ylabel(r'Total sediment discharge (tonnes)', color=[.5,.5,.5])
+ax[0][1].set_title('b) ', loc='left')
+ax[0][1].plot(dt, OS, '-o', color=[.5,.5,.5]) #, legend='Discharge at image acquisition'
+
+ax3 = ax[0][1].twinx()
+ax3.plot(dt_sed[ind], sed_load['Ave fraction fines (based on two turbidimeters)'][ind],'b-', alpha=0.5)
+ax3.set_ylabel(r'Average fraction of fines', color='b')
+
+
+####### flow
+f,bins=np.histogram(sed_load['Daily Discharge (m3/s)'][ind].values)
+ax[0][2].plot(bins[:-1],f/f.max(),'k')
+data = np.hstack([np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)]*2)
+data = np.hstack((data, np.random.randint(data.min(), data.max(),len(data))))
+f,bins=np.histogram(data)
+ax[0][2].bar(bins[:-1],f/f.max(),width=2,color='r')
+# ax[0][2].set_ylabel('Total wood area (m2)')
+
+ax[0][2].set_ylabel(r"Normalized frequency")
+ax[0][2].set_xlabel(r'Daily Discharge (m$^3$/s)', color='k')
+ax[0][2].set_title('c) ', loc='left')
+
+###############
+ax[1][0].plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(MR_BRarr,axis=1), 'bo')
+ax[1][0].plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(LR_BRarr,axis=1), 'rs')
+
+A = np.vstack([OQ, np.ones(len(OQ))]).T
+E = np.sum(LR_BRarr,axis=1)
+m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+ax[1][0].plot(OQ, m*OQ+ c, 'r:',lw=2, label='(LR) y = '+str(m)[:4]+'x+'+str(c)[:4])
+ax[1][0].text(20,45000,r'R$^2$ = '+str(np.min(np.corrcoef(OQ,E))**2)[:6], color='r')
+
+E = np.sum(MR_BRarr,axis=1)
+m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
+ax[1][0].plot(OQ, m*OQ+ c, 'b:',lw=2, label='(MR) y = '+str(m)[:4]+'x+'+str(c)[:4])
+ax[1][0].text(20,40000,r'R$^2$ = '+str(np.min(np.corrcoef(OQ,E))**2)[:6], color='b')
+
+ax[1][0].legend(fontsize=7)
+ax[1][0].set_ylabel(r"Estimated wood, m$^2$")
+ax[1][0].set_xlabel(r'Discharge, day of aerial survey  (m$^3$/s)')
+ax[1][0].set_title('d) ', loc='left')
+
+
+###############
+ax[1][1].scatter(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(MR_BRarr,axis=1), 50, np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values), cmap='inferno', edgecolor='k', lw=1)
+
+imc = ax[1][1].scatter(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(LR_BRarr,axis=1), 50, np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values), cmap='inferno', edgecolor='k', lw=1)
+
+cbar = plt.colorbar(imc)
+cbar.set_label('Total sediment discharge,\n day of aerial survey (tonnes)')
+
+ax[1][1].set_ylabel(r"Estimated wood, m$^2$")
+ax[1][1].set_xlabel(r'Discharge, day of aerial survey  (m$^3$/s)')
+ax[1][1].set_title('e) ', loc='left')
+
+woodsed_ratio_MR = (np.sum(MR_BRarr,axis=1)/np.sum(MR_BRarr,axis=1).max() ) / ((np.sum(MR_BRarrsed,axis=1)+np.sum(MR_BRarr,axis=1)) / (np.sum(MR_BRarrsed,axis=1).max()+np.sum(MR_BRarr,axis=1).max()))
+woodsed_ratio_LR = (np.sum(LR_BRarr,axis=1)/np.sum(LR_BRarr,axis=1).max() ) / ((np.sum(LR_BRarrsed,axis=1)+np.sum(LR_BRarr,axis=1)) / (np.sum(LR_BRarrsed,axis=1).max()+np.sum(LR_BRarr,axis=1).max()))
+
+###############
+# # ax[1][1].plot(np.log(O_MR),woodsed_ratio_MR,'ko',label="MR")
+ax[1][2].plot(np.log(OS)[summer],woodsed_ratio_MR[summer],'bo',label='MR, Discharge < 30 m$^3$/s')
+ax[1][2].plot(np.log(OS)[winter],woodsed_ratio_MR[winter],'bo',label='MR, Discharge > 30 m$^3$/s')
+
+A = np.vstack([np.log(OS), np.ones(len(OS))]).T
+m, c = np.linalg.lstsq(A, woodsed_ratio_MR, rcond=None)[0]
+ax[1][2].plot(np.log(OS), m*np.log(OS)+ c, 'b-',lw=2, label='(MR) y = '+str(m)[:4]+'x+'+str(c)[:4])
+ax[1][2].text(1,1.6,r'R$^2$ (MR) = '+str(np.min(np.corrcoef(np.log(OS),woodsed_ratio_MR))**2)[:6], color='b')
+
+
+###############
+# ax[1][1].plot(np.log(O_LR),woodsed_ratio_LR,'ko',label="LR")
+ax[1][2].plot(np.log(OS)[summer],woodsed_ratio_LR[summer],'rs',label='LR, Discharge < 30 m$^3$/s')
+ax[1][2].plot(np.log(OS)[winter],woodsed_ratio_LR[winter],'rs',label='LR, Discharge > 30 m$^3$/s')
+
+A = np.vstack([np.log(OS), np.ones(len(OS))]).T
+m, c = np.linalg.lstsq(A, woodsed_ratio_LR, rcond=None)[0]
+ax[1][2].plot(np.log(OS), m*np.log(OS)+ c, 'r-',lw=2, label='(LR) y = '+str(m)[:4]+'x+'+str(c)[:4])
+ax[1][2].text(1,1.4,r'R$^2$ (LR) = '+str(np.min(np.corrcoef(np.log(OS),woodsed_ratio_LR))**2)[:6], color='r')
+
+ax[1][2].set_ylabel("Ratio of normalized wood\n and normalized sediment")
+ax[1][2].set_xlabel('Total sediment discharge (log tonnes)')
+plt.legend()
+ax[1][2].set_title('f) ', loc='left')
+
+
+# plt.show()
+
+plt.savefig("summaries/flow_sed_2011_2016_wood_sed_rel.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+
+
+
+# plt.subplot(222)
+# y = F_MR.copy()/np.nansum(F_MR,axis=0)/len(times)
+# x = -.5
+# r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+# mnsz = np.nansum(r_v * bins[1:],axis=1)
+# plt.semilogx(mnsz, dt, 'w-o')
+
+# sig=[]
+# for counter in range(len(mnsz)):
+#     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
+
+# sig = np.array(sig)
+# plt.plot(sig, dt, 'k--')
+# plt.gca().invert_yaxis()
+# plt.xlim(5,625)
+
+# plt.subplot(224)
+# y = F_LR.copy()/np.nansum(F_LR,axis=0)/len(times)
+# mnsz = np.nansum(y * bins[1:],axis=1)
+# plt.semilogx(mnsz, dt, 'r-s')
+
+# sig=[]
+# for counter in range(len(mnsz)):
+#     sig.append(np.sqrt(np.nansum(y[counter,:]*((bins[1:]-mnsz[counter])**2))))
+
+# sig = np.array(sig)
+# plt.plot(sig, dt, 'r--')
+
+# plt.gca().invert_yaxis()
+# plt.xlim(5,625)
+
+
+
+
+# ######################################################
+
+# MR_BR=[]
+# for time in times:
+#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(MRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         result = (wood_c).sum().compute().to_numpy() 
+#         MR_BR.append(float(result))
+
+# #######################################################
+
+# LR_BR=[]
+# for time in times:
+#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(LRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         result = (wood_c).sum().compute().to_numpy() 
+#         LR_BR.append(float(result))
+
+
+# LR_BRarr = np.vstack(LR_BR).reshape(len(times),-1)/grid2sqm
+# MR_BRarr = np.vstack(MR_BR).reshape(len(times),-1)/grid2sqm
+
+# np.savez('Wood_time_series.npz', LR_BRarr = LR_BRarr, MR_BRarr = MR_BRarr, times=times, dt=dt, grid2sqm=grid2sqm)
+
+
+######################################################
+
+# MR_BR_small=[]
+# MR_BR_large=[]
+# for time in times:
+#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(MRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         label_img = label(wood_c==1)
+#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
+#         a = props['area'][np.where(props['area']<100000)[0]]
+#         result2 = np.sum(a[np.where(a>4096)[0]])
+#         result1 = np.sum(a[np.where(a<=4096)[0]])
+#         MR_BR_small.append(float(result1))
+#         MR_BR_large.append(float(result2))
+
+# #######################################################
+
+# LR_BR_small=[]
+# LR_BR_large=[]
+# for time in times:
+#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(LRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         label_img = label(wood_c==1)
+#         props = regionprops_table(label_img, properties=('area','axis_minor_length'))
+#         a = props['area'][np.where(props['area']<100000)[0]]
+#         result2 = np.sum(a[np.where(a>4096)[0]])
+#         result1 = np.sum(a[np.where(a<=4096)[0]])
+#         LR_BR_small.append(float(result1))
+#         LR_BR_large.append(float(result2))
+
+
+
+# LR_BRarr_small = np.vstack(LR_BR_small).reshape(len(times),-1)/grid2sqm
+# MR_BRarr_small = np.vstack(MR_BR_small).reshape(len(times),-1)/grid2sqm
+
+# LR_BRarr_large = np.vstack(LR_BR_large).reshape(len(times),-1)/grid2sqm
+# MR_BRarr_large = np.vstack(MR_BR_large).reshape(len(times),-1)/grid2sqm
+
+# np.savez('summaries/Wood_time_series_largepieces_smallpieces.npz', LR_BRarr_large = LR_BRarr_large, MR_BRarr_large = MR_BRarr_large, LR_BRarr_small = LR_BRarr_small, MR_BRarr_small = MR_BRarr_small, times=times, dt=dt, grid2sqm=grid2sqm)
+
+
+
+# ######################################################
+
+# MR_BRsed=[]
+# for time in times:
+#     tmp1 = MRsed_geotiffs_ds.sed.sel(time=time)
+#     tmp2 = MRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(MRbudget_reaches_redo):
+#         sed_c = tmp1.rio.clip([g], tmp1.rio.crs)
+#         wood_c = tmp2.rio.clip([g], tmp2.rio.crs)
+
+#         result = (sed_c).sum().compute().to_numpy() + (wood_c).sum().compute().to_numpy() 
+#         MR_BRsed.append(float(result))
+#         del wood_c, sed_c
+#     del tmp1, tmp2 
+
+# #######################################################
+
+# LR_BRsed=[]
+# for time in times:
+#     tmp1 = LRsed_geotiffs_ds.sed.sel(time=time)
+#     tmp2 = LRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(LRbudget_reaches_redo):
+#         sed_c = tmp1.rio.clip([g], tmp1.rio.crs)
+#         wood_c = tmp2.rio.clip([g], tmp2.rio.crs)
+
+#         result = (sed_c).sum().compute().to_numpy() + (wood_c).sum().compute().to_numpy() 
+#         LR_BRsed.append(float(result))
+#         del wood_c, sed_c
+#     del tmp1, tmp2 
+
+# LR_BRarrsed = np.vstack(LR_BRsed).reshape(len(times),-1)/grid2sqm
+# MR_BRarrsed = np.vstack(MR_BRsed).reshape(len(times),-1)/grid2sqm
+
+# np.savez('summaries/Sed_time_series.npz', LR_BRarrsed = LR_BRarrsed, MR_BRarrsed = MR_BRarrsed, times=times, dt=dt, grid2sqm=grid2sqm)
+
+
+
 # def xcorr_spacetime(dat, tmp):
 #     dat = np.flipud(dat)
 #     alongcorr=[]
@@ -901,142 +1032,6 @@ plt.show()
 
 
 
-
-
-##############################################################
-
-sed_load = pd.read_csv('../raw_data/time_series/Elwha_DailySedimentLoads_2011to2016.csv')
-
-sed_load = sed_load[['Day',
-'Daily Discharge (m3/s)',
-'Total sediment discharge (tonnes)',
-'Ave fraction fines (based on two turbidimeters)']]
-
-
-dt_sed = [datetime.strptime(time,'%m/%d/%Y') for time in sed_load['Day']]
-dt_sed = np.array(dt_sed)
-
-ind = np.argsort(dt_sed)
-
-t_sed = np.array([float(d.strftime('%s')) for d in dt_sed[ind]])
-t =  np.array([float(d.strftime('%s')) for d in dt])
-
-# O_MR = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
-OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values)
-OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
-
-
-
-###################################################
-
-fig, ax = plt.subplots(nrows=2, ncols=3)
-fig.set_size_inches(16,12)
-plt.subplots_adjust(wspace=0.6, hspace=0.2)
-
-####### flow
-# plt.subplot(221)
-ax[0][0].plot(dt, np.sum(MR_BRarr,axis=1),'k-', label='MR wood')
-ax[0][0].plot(dt, np.sum(LR_BRarr,axis=1),'r--', label='LR wood')
-ax[0][0].set_ylabel('Total wood area (m2)')
-
-ax2 = ax[0][0].twinx()
-ax2.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'b-', alpha=0.5, label='Daily discharge')
-ax2.set_ylabel(r'Daily Discharge (m$^3$/s)', color='b')
-ax[0][0].set_title('a) ', loc='left')
-
-ax2.plot(dt, OQ, 'b-o') #, legend='Discharge at image acquisition'
-
-###############
-ax[0][1].plot(dt_sed[ind], sed_load['Total sediment discharge (tonnes)'][ind],'-', color=[.5,.5,.5], alpha=0.5)
-ax[0][1].set_ylabel(r'Total sediment discharge (tonnes)', color=[.5,.5,.5])
-ax[0][1].set_title('b) ', loc='left')
-ax[0][1].plot(dt, OS, '-o', color=[.5,.5,.5]) #, legend='Discharge at image acquisition'
-
-ax3 = ax[0][1].twinx()
-ax3.plot(dt_sed[ind], sed_load['Ave fraction fines (based on two turbidimeters)'][ind],'b-', alpha=0.5)
-ax3.set_ylabel(r'Average fraction of fines', color='b')
-
-
-####### flow
-f,bins=np.histogram(sed_load['Daily Discharge (m3/s)'][ind].values)
-ax[0][2].plot(bins[:-1],f/f.max(),'k')
-data = np.hstack([np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)]*2)
-data = np.hstack((data, np.random.randint(data.min(), data.max(),len(data))))
-f,bins=np.histogram(data)
-ax[0][2].bar(bins[:-1],f/f.max(),width=2,color='r')
-# ax[0][2].set_ylabel('Total wood area (m2)')
-
-ax[0][2].set_ylabel(r"Normalized frequency")
-ax[0][2].set_xlabel(r'Daily Discharge (m$^3$/s)', color='k')
-ax[0][2].set_title('c) ', loc='left')
-
-###############
-ax[1][0].plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(MR_BRarr,axis=1), 'bo')
-ax[1][0].plot(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(LR_BRarr,axis=1), 'rs')
-
-A = np.vstack([OQ, np.ones(len(OQ))]).T
-E = np.sum(LR_BRarr,axis=1)
-m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
-ax[1][0].plot(OQ, m*OQ+ c, 'r:',lw=2, label='(LR) y = '+str(m)[:4]+'x+'+str(c)[:4])
-ax[1][0].text(20,45000,r'R$^2$ = '+str(np.min(np.corrcoef(OQ,E))**2)[:6], color='r')
-
-E = np.sum(MR_BRarr,axis=1)
-m, c = np.linalg.lstsq(A, np.array(E), rcond=None)[0]
-ax[1][0].plot(OQ, m*OQ+ c, 'b:',lw=2, label='(MR) y = '+str(m)[:4]+'x+'+str(c)[:4])
-ax[1][0].text(20,40000,r'R$^2$ = '+str(np.min(np.corrcoef(OQ,E))**2)[:6], color='b')
-
-ax[1][0].legend(fontsize=7)
-ax[1][0].set_ylabel(r"Estimated wood, m$^2$")
-ax[1][0].set_xlabel(r'Discharge, day of aerial survey  (m$^3$/s)')
-ax[1][0].set_title('d) ', loc='left')
-
-
-###############
-ax[1][1].scatter(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(MR_BRarr,axis=1), 50, np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values), cmap='inferno', edgecolor='k', lw=1)
-
-imc = ax[1][1].scatter(np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values), np.sum(LR_BRarr,axis=1), 50, np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].values), cmap='inferno', edgecolor='k', lw=1)
-
-cbar = plt.colorbar(imc)
-cbar.set_label('Total sediment discharge,\n day of aerial survey (tonnes)')
-
-ax[1][1].set_ylabel(r"Estimated wood, m$^2$")
-ax[1][1].set_xlabel(r'Discharge, day of aerial survey  (m$^3$/s)')
-ax[1][1].set_title('e) ', loc='left')
-
-woodsed_ratio_MR = (np.sum(MR_BRarr,axis=1)/np.sum(MR_BRarr,axis=1).max() ) / ((np.sum(MR_BRarrsed,axis=1)+np.sum(MR_BRarr,axis=1)) / (np.sum(MR_BRarrsed,axis=1).max()+np.sum(MR_BRarr,axis=1).max()))
-woodsed_ratio_LR = (np.sum(LR_BRarr,axis=1)/np.sum(LR_BRarr,axis=1).max() ) / ((np.sum(LR_BRarrsed,axis=1)+np.sum(LR_BRarr,axis=1)) / (np.sum(LR_BRarrsed,axis=1).max()+np.sum(LR_BRarr,axis=1).max()))
-
-###############
-# # ax[1][1].plot(np.log(O_MR),woodsed_ratio_MR,'ko',label="MR")
-ax[1][2].plot(np.log(OS)[summer],woodsed_ratio_MR[summer],'bo',label='MR, Discharge < 30 m$^3$/s')
-ax[1][2].plot(np.log(OS)[winter],woodsed_ratio_MR[winter],'bo',label='MR, Discharge > 30 m$^3$/s')
-
-A = np.vstack([np.log(OS), np.ones(len(OS))]).T
-m, c = np.linalg.lstsq(A, woodsed_ratio_MR, rcond=None)[0]
-ax[1][2].plot(np.log(OS), m*np.log(OS)+ c, 'b-',lw=2, label='(MR) y = '+str(m)[:4]+'x+'+str(c)[:4])
-ax[1][2].text(1,1.6,r'R$^2$ (MR) = '+str(np.min(np.corrcoef(np.log(OS),woodsed_ratio_MR))**2)[:6], color='b')
-
-
-###############
-# ax[1][1].plot(np.log(O_LR),woodsed_ratio_LR,'ko',label="LR")
-ax[1][2].plot(np.log(OS)[summer],woodsed_ratio_LR[summer],'rs',label='LR, Discharge < 30 m$^3$/s')
-ax[1][2].plot(np.log(OS)[winter],woodsed_ratio_LR[winter],'rs',label='LR, Discharge > 30 m$^3$/s')
-
-A = np.vstack([np.log(OS), np.ones(len(OS))]).T
-m, c = np.linalg.lstsq(A, woodsed_ratio_LR, rcond=None)[0]
-ax[1][2].plot(np.log(OS), m*np.log(OS)+ c, 'r-',lw=2, label='(LR) y = '+str(m)[:4]+'x+'+str(c)[:4])
-ax[1][2].text(1,1.4,r'R$^2$ (LR) = '+str(np.min(np.corrcoef(np.log(OS),woodsed_ratio_LR))**2)[:6], color='r')
-
-ax[1][2].set_ylabel("Ratio of normalized wood\n and normalized sediment")
-ax[1][2].set_xlabel('Total sediment discharge (log tonnes)')
-plt.legend()
-ax[1][2].set_title('f) ', loc='left')
-
-
-# plt.show()
-
-plt.savefig("summaries/flow_sed_2011_2016_wood_sed_rel.png", dpi=300, bbox_inches="tight")
-plt.close()
 
 
 # ####### sed

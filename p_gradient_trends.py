@@ -1,7 +1,7 @@
 
 
 ## Dan Buscombe, Marda Science
-
+## 2023
 
 import json, os
 import rioxarray
@@ -160,8 +160,6 @@ zLR=sorted(z)
 zLR = np.array(zLR)
 zMR = np.array(zMR)
 
-
-
 ####################################################
 
 
@@ -285,26 +283,9 @@ xLRi = np.linspace(0,len(LR),len(LR_widths))
 c_gzLRi= np.interp(xLRi, np.linspace(0,len(xLRi),len(gzLRi)), gzLRi)
 
 
-# Cm = []
-# Cl = []
-# for s in np.linspace(1,10,10):
-
-#     wMRic = uniform_filter1d(wMRi, size=int(s))
-#     wLRic = uniform_filter1d(wLRi, size=int(s))
-
-#     Cm.append(np.min(np.corrcoef(wMRic,woodMRi)))
-#     Cl.append(np.min(np.corrcoef(wLRic,woodLRi)))
-
-# plt.plot(np.linspace(1,10,10), Cm,'k')
-# plt.plot(np.linspace(1,10,10), Cl,'r')
-# plt.show()
-
-
 
 wMRic = uniform_filter1d(wMRi, size=6)
 wLRic = uniform_filter1d(wLRi, size=6)
-
-
 
 
 
@@ -436,14 +417,6 @@ plt.close()
 # # # plt.legend()
 
 # plt.show()
-
-
-
-
-
-
-
-
 
 # Cm = []
 # Cl = []

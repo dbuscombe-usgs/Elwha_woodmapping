@@ -1,6 +1,5 @@
 ## Dan Buscombe, Marda Science
-## Apr-June, 2023
-#
+## 2023
 
 import json, os
 import rioxarray

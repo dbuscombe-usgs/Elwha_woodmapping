@@ -1,5 +1,5 @@
 ## Dan Buscombe, Marda Science
-## Apr-June, 2023
+## 2023
 import os, json, sys
 import rioxarray
 import xarray as xr 

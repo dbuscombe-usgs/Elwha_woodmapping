@@ -1,6 +1,6 @@
 
 ## Dan Buscombe, Marda Science
-## May-June, 2023
+## 2023
 
 import json, os
 import rioxarray
@@ -15,12 +15,44 @@ import pandas as pd
 from area import area
 from skimage.measure import label, regionprops_table
 from pointpats import centrography, distance_statistics
+import geopandas as gpd
 
 try:
     from skimage.measure import pearson_corr_coeff, intersection_coeff, manders_coloc_coeff, manders_overlap_coeff, pearson_corr_coeff
 except:
     print("you need scikit-image>=0.21.0")
     sys.exit(2)
+
+from scipy.signal import convolve2d
+
+
+# ##========================================================
+def inpaint_nans(im):
+    ipn_kernel = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])  # kernel for inpaint_nans
+    nans = np.isnan(im)
+    while np.sum(nans) > 0:
+        im[nans] = 0
+        vNeighbors = convolve2d(
+            (nans == False), ipn_kernel, mode="same", boundary="symm"
+        )
+        im2 = convolve2d(im, ipn_kernel, mode="same", boundary="symm")
+        im2[vNeighbors > 0] = im2[vNeighbors > 0] / vNeighbors[vNeighbors > 0]
+        im2[vNeighbors == 0] = np.nan
+        im2[(nans == False)] = im[(nans == False)]
+        im = im2
+        nans = np.isnan(im)
+    return im
+
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
 
 
 #############################################################
@@ -99,18 +131,6 @@ dists = pd.read_csv('br_dists.csv')
 LR = np.hstack((0,np.array(dists['LR'])))
 MR = np.hstack((0,np.array(dists['MR'][:43])))
 
-
-def rescale_array(dat, mn, mx):
-    """
-    rescales an input dat between mn and mx
-    Code from doodleverse_utils by Daniel Buscombe
-    source: https://github.com/Doodleverse/doodleverse_utils
-    """
-    m = min(dat.flatten())
-    M = max(dat.flatten())
-    return (mx - mn) * (dat - m) / (M - m) + mn
-
-
 LR = rescale_array(LR,11,2)
 MR = rescale_array(MR[::-1],12,20)
 
@@ -147,18 +167,6 @@ MRwood_geotiffs_ds = geotiffs_ds.rename({1: 'wood'})
 
 
 #############################################################
-# get mean detrended dems
-
-# ####### MR
-# MR_detrend_dem = rioxarray.open_rasterio("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_global_regrid.tif", chunks=chunksize, dtype=dtype)
-# MR_detrend_dem = MR_detrend_dem.to_dataset('band').persist()
-# print(MR_detrend_dem.dims)
-
-
-# ####### LR
-# LR_detrend_dem = rioxarray.open_rasterio("../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/LR_DEM_detrend_global_regrid.tif", chunks=chunksize, dtype=dtype)
-# LR_detrend_dem = LR_detrend_dem.to_dataset('band').persist()
-# print(LR_detrend_dem.dims)
 
 dem_files = sorted(glob('../raw_data/Elwha_PlaneCamLidarDEMs_2013to2016/MR_DEM_detrend_2*.tif'))
 geotiffs_da = xr.concat([rioxarray.open_rasterio(i, chunks=chunksize, dtype=dtype) for i in dem_files],
@@ -181,113 +189,113 @@ LR_dem_detrend_geotiffs_ds = geotiffs_ds.rename({1: 'dem'})
 #############################################
 
 
-# #### MR
-# MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
-# for counter,time in enumerate(times):
-#     print(counter)
-#     if counter>0:
-#         tmp = MRwood_geotiffs_ds.wood.sel(time=times[counter])
-#         tmp0 = MRwood_geotiffs_ds.wood.sel(time=times[counter-1])
+#### MR
+MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
+for counter,time in enumerate(times):
+    print(counter)
+    if counter>0:
+        tmp = MRwood_geotiffs_ds.wood.sel(time=times[counter])
+        tmp0 = MRwood_geotiffs_ds.wood.sel(time=times[counter-1])
        
-#         for g in tqdm(MRbudget_reaches_redo):
-#             wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#             wood_c0 = tmp0.rio.clip([g], tmp.rio.crs)
+        for g in tqdm(MRbudget_reaches_redo):
+            wood_c = tmp.rio.clip([g], tmp.rio.crs)
+            wood_c0 = tmp0.rio.clip([g], tmp.rio.crs)
 
-#             MR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#             MR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#             MR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#             pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
-#             MR_PC.append(pcc)
-#             MR_PV.append(pval)
+            MR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+            MR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+            MR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+            pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+            MR_PC.append(pcc)
+            MR_PV.append(pval)
 
-# MR_IC = np.array(MR_IC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_MO = np.array(MR_MO).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_MC = np.array(MR_MC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_PC = np.array(MR_PC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_PV = np.array(MR_PV).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_IC = np.array(MR_IC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_MO = np.array(MR_MO).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_MC = np.array(MR_MC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC = np.array(MR_PC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV = np.array(MR_PV).reshape(len(times)-1,len(MRbudget_reaches_redo))
 
-# np.savez('summaries/MR_association_metrics_surveypairs.npz', MR_IC = MR_IC, MR_MO = MR_MO, MR_MC = MR_MC, MR_PC = MR_PC, MR_PV=MR_PV)
+np.savez('summaries/MR_association_metrics_surveypairs.npz', MR_IC = MR_IC, MR_MO = MR_MO, MR_MC = MR_MC, MR_PC = MR_PC, MR_PV=MR_PV)
 
 
-# #### LR
-# LR_MO=[]; LR_MC = []; LR_IC = []; LR_PC = []; LR_PV=[]
-# for counter,time in enumerate(times):
-#     print(counter)
-#     if counter>0:
-#         tmp = LRwood_geotiffs_ds.wood.sel(time=times[counter])
-#         tmp0 = LRwood_geotiffs_ds.wood.sel(time=times[counter-1])
+#### LR
+LR_MO=[]; LR_MC = []; LR_IC = []; LR_PC = []; LR_PV=[]
+for counter,time in enumerate(times):
+    print(counter)
+    if counter>0:
+        tmp = LRwood_geotiffs_ds.wood.sel(time=times[counter])
+        tmp0 = LRwood_geotiffs_ds.wood.sel(time=times[counter-1])
        
-#         for g in tqdm(LRbudget_reaches_redo):
-#             wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#             wood_c0 = tmp0.rio.clip([g], tmp.rio.crs)
+        for g in tqdm(LRbudget_reaches_redo):
+            wood_c = tmp.rio.clip([g], tmp.rio.crs)
+            wood_c0 = tmp0.rio.clip([g], tmp.rio.crs)
 
-#             LR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#             LR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#             LR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#             pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
-#             LR_PC.append(pcc)
-#             LR_PV.append(pval)
+            LR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+            LR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+            LR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+            pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+            LR_PC.append(pcc)
+            LR_PV.append(pval)
 
-# LR_IC = np.array(LR_IC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_MO = np.array(LR_MO).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_MC = np.array(LR_MC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_PC = np.array(LR_PC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_PV = np.array(LR_PV).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_IC = np.array(LR_IC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_MO = np.array(LR_MO).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_MC = np.array(LR_MC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC = np.array(LR_PC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV = np.array(LR_PV).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
-# np.savez('summaries/LR_association_metrics_surveypairs.npz', LR_IC = LR_IC, LR_MO = LR_MO, LR_MC = LR_MC, LR_PC = LR_PC, LR_PV=LR_PV)
-
-
-
-# #### MR
-# wood0 = MRwood_geotiffs_ds.wood.sel(time=times[0])
-
-# MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
-# for time in times[1:]:
-#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(MRbudget_reaches_redo):
-#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#         wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
-
-#         MR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#         MR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#         MR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#         pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
-#         MR_PC.append(pcc)
-#         MR_PV.append(pval)
-
-# #### LR
-# wood0 = LRwood_geotiffs_ds.wood.sel(time=times[0])
-
-# LR_MO=[]; LR_MC = []; LR_IC = []; LR_PC=[]; LR_PV=[]
-# for time in times[1:]:
-#     tmp = LRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(LRbudget_reaches_redo):
-#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#         wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
-
-#         LR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#         LR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#         LR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
-#         pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
-#         LR_PC.append(pcc)
-#         LR_PV.append(pval)
+np.savez('summaries/LR_association_metrics_surveypairs.npz', LR_IC = LR_IC, LR_MO = LR_MO, LR_MC = LR_MC, LR_PC = LR_PC, LR_PV=LR_PV)
 
 
-# LR_IC = np.array(LR_IC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_MO = np.array(LR_MO).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_MC = np.array(LR_MC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_PC = np.array(LR_PC).reshape(len(times)-1,len(LRbudget_reaches_redo))
-# LR_PV = np.array(LR_PV).reshape(len(times)-1,len(LRbudget_reaches_redo))
 
-# MR_IC = np.array(MR_IC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_MO = np.array(MR_MO).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_MC = np.array(MR_MC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_PC = np.array(MR_PC).reshape(len(times)-1,len(MRbudget_reaches_redo))
-# MR_PV = np.array(MR_PV).reshape(len(times)-1,len(MRbudget_reaches_redo))
+#### MR
+wood0 = MRwood_geotiffs_ds.wood.sel(time=times[0])
+
+MR_MO=[]; MR_MC = []; MR_IC = []; MR_PC = []; MR_PV=[]
+for time in times[1:]:
+    tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+    for g in tqdm(MRbudget_reaches_redo):
+        wood_c = tmp.rio.clip([g], tmp.rio.crs)
+        wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
+
+        MR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+        MR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+        MR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+        pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+        MR_PC.append(pcc)
+        MR_PV.append(pval)
+
+#### LR
+wood0 = LRwood_geotiffs_ds.wood.sel(time=times[0])
+
+LR_MO=[]; LR_MC = []; LR_IC = []; LR_PC=[]; LR_PV=[]
+for time in times[1:]:
+    tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+    for g in tqdm(LRbudget_reaches_redo):
+        wood_c = tmp.rio.clip([g], tmp.rio.crs)
+        wood_c0 = wood0.rio.clip([g], tmp.rio.crs)
+
+        LR_IC.append(intersection_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+        LR_MO.append(manders_overlap_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+        LR_MC.append(manders_coloc_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1))
+        pcc, pval = pearson_corr_coeff(wood_c0.to_numpy()==1, wood_c.to_numpy()==1)
+        LR_PC.append(pcc)
+        LR_PV.append(pval)
 
 
-# np.savez('summaries/LR_association_metrics.npz', LR_IC = LR_IC, LR_MO = LR_MO, LR_MC = LR_MC, LR_PC = LR_PC, LR_PV=LR_PV)
-# np.savez('summaries/MR_association_metrics.npz', MR_IC = MR_IC, MR_MO = MR_MO, MR_MC = MR_MC, MR_PC = MR_PC, MR_PV=LR_PV)
+LR_IC = np.array(LR_IC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_MO = np.array(LR_MO).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_MC = np.array(LR_MC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PC = np.array(LR_PC).reshape(len(times)-1,len(LRbudget_reaches_redo))
+LR_PV = np.array(LR_PV).reshape(len(times)-1,len(LRbudget_reaches_redo))
+
+MR_IC = np.array(MR_IC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_MO = np.array(MR_MO).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_MC = np.array(MR_MC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PC = np.array(MR_PC).reshape(len(times)-1,len(MRbudget_reaches_redo))
+MR_PV = np.array(MR_PV).reshape(len(times)-1,len(MRbudget_reaches_redo))
+
+
+np.savez('summaries/LR_association_metrics.npz', LR_IC = LR_IC, LR_MO = LR_MO, LR_MC = LR_MC, LR_PC = LR_PC, LR_PV=LR_PV)
+np.savez('summaries/MR_association_metrics.npz', MR_IC = MR_IC, MR_MO = MR_MO, MR_MC = MR_MC, MR_PC = MR_PC, MR_PV=LR_PV)
 
 
 
@@ -322,29 +330,12 @@ with np.load('summaries/MR_association_metrics_surveypairs.npz', allow_pickle=Tr
     MR_PV = f['MR_PV']
 
 
-import geopandas as gpd
 
 file = '../raw_data/GIS/LR_transects_clipped_active.geojson'
 # file = '../raw_data/GIS/LR_active_widths.geojson'
 LR_widths = gpd.read_file(file)
 LR_width = LR_widths['width'].values
 LR_full_width = LR_widths['full_width'].values
-
-# features = []
-# # Use explode to break multilinestrings in linestrings
-# feature_exploded = LR_widths.explode(ignore_index=True)
-# # For each linestring portion of feature convert to lat,lon tuples
-# lat_lng = feature_exploded.apply(
-#     lambda row: {str(row.Id): np.array(np.array(row.geometry.coords).tolist())},
-#     axis=1,
-# )
-# features = list(lat_lng)
-# new_dict = {}
-# for item in list(features):
-#     new_dict = {**new_dict, **item}
-
-# [np.mean(new_dict[n],axis=0).tolist() for n in new_dict.keys()]
-
 
 file = '../raw_data/GIS/MR_transects_clipped_active.geojson'
 # file = '../raw_data/GIS/MR_active_widths.geojson'
@@ -354,25 +345,6 @@ MR_full_width = MR_widths['full_width'].values
 
 
 ## plot width vbersus persistenmce
-from scipy.signal import convolve2d
-
-
-# ##========================================================
-def inpaint_nans(im):
-    ipn_kernel = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])  # kernel for inpaint_nans
-    nans = np.isnan(im)
-    while np.sum(nans) > 0:
-        im[nans] = 0
-        vNeighbors = convolve2d(
-            (nans == False), ipn_kernel, mode="same", boundary="symm"
-        )
-        im2 = convolve2d(im, ipn_kernel, mode="same", boundary="symm")
-        im2[vNeighbors > 0] = im2[vNeighbors > 0] / vNeighbors[vNeighbors > 0]
-        im2[vNeighbors == 0] = np.nan
-        im2[(nans == False)] = im[(nans == False)]
-        im = im2
-        nans = np.isnan(im)
-    return im
 
 
 MR_PC2 = inpaint_nans(np.flipud(MR_PC))
@@ -481,15 +453,6 @@ OS = np.interp(t, t_sed, sed_load['Total sediment discharge (tonnes)'][ind].valu
 OQ = np.interp(t, t_sed, sed_load['Daily Discharge (m3/s)'][ind].values)
 
 
-# plt.plot(OQ[1:], np.mean(MR_IC2,axis=1), 'ko')
-# plt.plot(OQ[1:], np.mean(LR_IC2,axis=1), 'rs')
-# plt.show()
-
-# plt.plot(OQ[1:], np.max(MR_PC2,axis=1), 'ko')
-# plt.plot(OQ[1:], np.max(LR_PC2,axis=1), 'rs')
-# plt.show()
-
-
 
 ########################################
 plt.figure(figsize=(16,12))
@@ -555,6 +518,504 @@ plt.savefig("summaries/wood_spacetime_persistence_pairwise_medians.png", dpi=300
 plt.close()
 
 
+
+with np.load('../results/LR_spatial_metrics.npz', allow_pickle=True) as f:
+    LR_GIO = f['LR_GIO']
+    LR_GIR = f['LR_GIR']
+    LR_CLUSTERED = f['LR_CLUSTERED']
+    LR_GTEST = f['LR_GTEST']
+    LR_FTEST=f['LR_FTEST']
+    LR_FIO=f['LR_FIO']
+    LR_FIR=f['LR_FIR']
+    LR_DISPERSED=f['LR_DISPERSED']
+
+
+F=[]
+for k in LR_FTEST:
+    try:
+        F.append(k[1])
+    except:
+        F.append(np.ones(40)*np.nan)
+    # try:
+    #     F.append(k[1]) #[4][1])
+    # except: 
+    #     F.append(k[6][1])
+
+LR_DISPERSED = np.array(LR_DISPERSED).reshape(len(times),len(LRbudget_reaches_redo))
+LR_CLUSTERED = np.array(LR_CLUSTERED).reshape(len(times),len(LRbudget_reaches_redo))
+
+# LR_FTEST = np.array(LR_FTEST).reshape(len(times),len(LRbudget_reaches_redo))
+LR_FIO = np.array(LR_FIO).reshape(len(times),len(LRbudget_reaches_redo))
+LR_FIR = np.array(LR_FIR).reshape(len(times),len(LRbudget_reaches_redo))
+
+# LR_GTEST = np.array(LR_GTEST).reshape(len(times),len(LRbudget_reaches_redo))
+LR_GIO = np.array(LR_GIO).reshape(len(times),len(LRbudget_reaches_redo))
+LR_GIR = np.array(LR_GIR).reshape(len(times),len(LRbudget_reaches_redo))
+
+
+
+
+with np.load('../results/MR_spatial_metrics.npz', allow_pickle=True) as f:
+    MR_GIO = f['MR_GIO']
+    MR_GIR = f['MR_GIR']
+    MR_CLUSTERED = f['MR_CLUSTERED']
+    MR_GTEST = f['MR_GTEST']
+    MR_FTEST=f['MR_FTEST']
+    MR_FIO=f['MR_FIO']
+    MR_FIR=f['MR_FIR']
+    MR_DISPERSED=f['MR_DISPERSED']
+
+
+# FMR=[]
+# for k in MR_FTEST:
+#     try:
+#         FMR.append(k[4][1])
+#     except: 
+#         FMR.append(k[6][1])
+
+MR_DISPERSED = np.array(MR_DISPERSED).reshape(len(times),len(MRbudget_reaches_redo))
+MR_CLUSTERED = np.array(MR_CLUSTERED).reshape(len(times),len(MRbudget_reaches_redo))
+
+# MR_FTEST = np.array(MR_FTEST).reshape(len(times),len(MRbudget_reaches_redo))
+MR_FIO = np.array(MR_FIO).reshape(len(times),len(MRbudget_reaches_redo))
+MR_FIR = np.array(MR_FIR).reshape(len(times),len(MRbudget_reaches_redo))
+
+# MR_GTEST = np.array(MR_GTEST).reshape(len(times),len(MRbudget_reaches_redo))
+MR_GIO = np.array(MR_GIO).reshape(len(times),len(MRbudget_reaches_redo))
+MR_GIR = np.array(MR_GIR).reshape(len(times),len(MRbudget_reaches_redo))
+
+
+
+# with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
+#     LR_BRarr = f['LR_BRarr']
+#     MR_BRarr = f['MR_BRarr']
+#     dt = f['dt']
+#     grid2sqm = f['grid2sqm']
+
+# dists = pd.read_csv('br_dists.csv')
+# LR = np.hstack((0,np.array(dists['LR'])))
+# MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+# #### divide out by area of each BR for a wood concentration\
+# A_MR = np.array(A_MR)
+# A_LR = np.array(A_LR)
+
+# ## wood
+# MR_BRarr_c = MR_BRarr/A_MR
+# LR_BRarr_c = LR_BRarr/A_LR
+
+dt = np.array(dt)
+
+
+
+fig, ax = plt.subplots(nrows=2, ncols=3)
+fig.set_size_inches(16,8)
+plt.subplots_adjust(wspace=0.4, hspace=0.4)
+
+prop_disp = np.nansum(MR_DISPERSED,axis=1)/len(MRbudget_reaches_redo)
+y = np.nanmean(MR_FIO,axis=-1)
+y2 = np.nanmean(MR_FIR,axis=-1)
+
+ax[0][0].plot(dt, y, 'k:', lw=3, label='Observed')
+ax[0][0].plot(dt, y2, 'm--', label='Random')
+ax[0][0].set_ylabel('Reach-averaged F-test statistic', color='m')
+ax[0][0].set_title('a) MR', loc='left');
+ax[0][0].legend(loc=3)
+ax[0][0].set_ylim(0,.65)
+
+ax20 = ax[0][0].twinx()
+# ax2.plot(dt, prop_disp,'b')
+ind = np.where(y>y2)[0]
+ax20.plot(dt[ind], prop_disp[ind],'b-o')
+ind = np.where(y<y2)[0]
+ax20.plot(dt[ind], prop_disp[ind],'go')
+ax20.set_ylabel('Proportion of reach dispersed', color='b')
+ax20.set_ylim(0,.75)
+
+prop_disp = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
+y = np.nanmean(LR_FIO,axis=-1)
+y2 = np.nanmean(LR_FIR,axis=-1)
+
+ax[1][0].plot(dt, y, 'r:', lw=3, label='Observed')
+ax[1][0].plot(dt, y2, 'm--', label='Random')
+ax[1][0].set_ylabel('Reach-averaged F-test statistic', color='m')
+ax[1][0].set_title('b) LR', loc='left');
+ax[1][0].legend(loc=3)
+ax[1][0].set_ylim(0,.65)
+
+ax2 = ax[1][0].twinx()
+# ax2.plot(dt, prop_disp,'b')
+ind = np.where(y>y2)[0]
+ax2.plot(dt[ind], prop_disp[ind],'b-o')
+ind = np.where(y<y2)[0]
+ax2.plot(dt[ind], prop_disp[ind],'go')
+ax2.set_ylabel('Proportion of reach dispersed', color='b')
+ax2.set_ylim(0,.75)
+
+##### dfispersion versus persistence
+ax[0][1].plot(np.nanmedian(MR_PC2,axis=0), np.nanmedian(MR_FIO,axis=0),'ko', label='MR')
+ax[0][1].plot(np.nanmedian(LR_PC2,axis=0), np.nanmedian(LR_FIO,axis=0),'rs', label='LR')
+ax[0][1].set_ylabel('Dispersion; median F-score (-)', color='k')
+ax[0][1].set_xlabel('Persistence; median autocorrelation (-)', color='k')
+ax[0][1].set_title('c)', loc='left');
+ax[0][1].legend(loc=3)
+ax[0][1].set_ylim(0,1.03)
+ax[0][1].set_xlim(0,1.03)
+
+##### dfispersion versus width
+# x = np.nanmax(MR_FIO,axis=0)
+x = np.nanmedian(MR_FIO,axis=0)
+y = MR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][1].plot(y, xi,'ko', label='MR')
+
+# x = np.nanmax(LR_FIO,axis=0)
+x = np.nanmedian(LR_FIO,axis=0)
+y = LR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][1].plot(y, xi,'rs', label='LR')
+
+ax[1][1].set_ylabel('Dispersion; median F-score (-)', color='k')
+ax[1][1].set_xlabel('Channel width (m)', color='k')
+ax[1][1].set_title('d)', loc='left');
+ax[1][1].legend(loc=4)
+ax[1][1].set_ylim(0,1.03)
+# ax[1][1].set_xlim(0,300)
+
+##### dfispersion versus persistence
+ax[0][2].plot(np.nanmax(MR_PC2,axis=0), np.nanmax(MR_FIO,axis=0),'ko', label='MR')
+ax[0][2].plot(np.nanmax(LR_PC2,axis=0), np.nanmax(LR_FIO,axis=0),'rs', label='LR')
+ax[0][2].set_ylabel('Dispersion; maximum F-score (-)', color='k')
+ax[0][2].set_xlabel('Persistence; maximum autocorrelation (-)', color='k')
+ax[0][2].set_title('e)', loc='left');
+ax[0][2].legend(loc=3)
+ax[0][2].set_ylim(0,1.03)
+ax[0][2].set_xlim(0,1.03)
+
+##### dfispersion versus width
+x = np.nanmax(MR_FIO,axis=0)
+# x = np.nanmedian(MR_FIO,axis=0)
+y = MR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][2].plot(y, xi,'ko', label='MR')
+
+x = np.nanmax(LR_FIO,axis=0)
+# x = np.nanmedian(LR_FIO,axis=0)
+y = LR_full_width.copy()
+xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
+ax[1][2].plot(y, xi,'rs', label='LR')
+
+ax[1][2].set_ylabel('Dispersion; maximum F-score (-)', color='k')
+ax[1][2].set_xlabel('Channel width (m)', color='k')
+ax[1][2].set_title('f)', loc='left');
+ax[1][2].legend(loc=4)
+ax[1][1].set_ylim(0,1.03)
+# ax[1][1].set_xlim(0,300)
+
+# plt.show()
+
+plt.savefig("summaries/dispersion_stats.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+
+
+
+
+######################################################
+    
+# MR_props=[]
+# for time in times:
+#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+#     for g in tqdm(MRbudget_reaches_redo):
+#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
+#         label_img = label(wood_c==1)
+#         props = regionprops_table(label_img, properties=('area','axis_minor_length','centroid','orientation', 'coords'))
+#         MR_props.append(props)
+
+#######################################################
+
+
+#Centrography is the analysis of centrality in a point pattern. 
+# By “centrality,” we mean the general location and dispersion of the pattern. 
+# centrography is the point pattern equivalent of measures of central tendency such as the mean. 
+# These measures are useful because they allow us to summarize spatial distributions in smaller sets of information (e.g., a single point). 
+# Many different indices are used in centrography to provide an indication of “where” a point pattern is, 
+# how tightly the point pattern clusters around its center, or how irregular its shape is.
+
+
+### pip install pointpats
+# Point Pattern Analysis
+### https://geographicdata.science/book/notebooks/08_point_pattern_analysis.html
+#Centrography is the analysis of centrality in a point pattern. 
+# By “centrality,” we mean the general location and dispersion of the pattern. 
+# centrography is the point pattern equivalent of measures of central tendency such as the mean. 
+# These measures are useful because they allow us to summarize spatial distributions in smaller sets of information (e.g., a single point). 
+# Many different indices are used in centrography to provide an indication of “where” a point pattern is, how tightly the point pattern clusters around its center, or how irregular its shape is.
+
+
+## A measure of dispersion that is common in centrography is the standard distance. 
+# This measure provides the average distance away from the center of the point cloud (such as measured by the center of mass).
+# centrography.std_distance(coordinates)
+
+# dispersion: whether points tend to all cluster near one another or disperse evenly throughout the area. 
+# The first set of techniques, quadrat statistics, receive their name after their approach to split the data up into small areas (quadrants). Once created, these “buckets” are used to examine the uniformity of counts across them. The second set of techniques all derive from Ripley (1988) and involve measurements of the distance between points in a point pattern.
+
+# Ripley’s alphabet of functions
+
+# The second group of spatial statistics we consider focuses on the distributions of two quantities in a point pattern: nearest neighbor distances and what we will term “gaps” in the pattern. They derive from seminal work by [Rip91] on how to characterize clustering or co-location in point patterns. Each of these characterizes an aspect of the point pattern as we increase the distance range from each point to calculate them.
+
+# The first function, Ripley’s
+# , focuses on the distribution of nearest neighbor distances. That is, the
+# function summarizes the distances between each point in the pattern and its nearest neighbor. 
+
+# Ripley’s G keeps track of the proportion of points for which the nearest neighbor is within a given distance threshold, and plots that cumulative percentage against the increasing distance radii. The distribution of these cumulative percentages has a distinctive shape under completely spatially random processes. The intuition behind Ripley’s G goes as follows: we can learn about how similar our pattern is to a spatially random one by computing the cumulative distribution of nearest neighbor distances over increasing distance thresholds, and comparing it to that of a set of simulated patterns that follow a known spatially random process. Usually, a spatial Poisson point process is used as such reference distribution.
+
+
+
+# # The second function we introduce is Ripley’s F. 
+# # Where the G function works by analyzing the distance between points in the pattern, the F function works by analyzing the distance to points in the pattern from locations in empty space
+# # it characterizes the typical distance from arbitrary points in empty space to the point pattern. 
+# # More explicitly, the F accumulates, for a growing distance range, the percentage of points that can be found within that range from a random point pattern generated within the extent of the observed pattern. If the pattern has large gaps or empty areas, the F function will increase slowly. 
+# # But, if the pattern is highly dispersed, then the F function will increase rapidly. 
+# # The shape of this cumulative distribution is then compared to those constructed by calculating the same cumulative distribution between the random pattern and an additional, random one generated in each simulation step.
+
+
+
+# # https://github.com/pysal/pointpats/blob/main/notebooks/distance_statistics-numpy-oriented.ipynb
+
+# # Interevent Distance Functions
+
+# # While both the F and G functions are useful, they only consider the distance between each point and its nearest point. 
+
+# # the K function is a scaled version of the cumulative density function for all distances within a point pattern. 
+# # As such, it's a "relative" of the function that considers all distances, not just the nearest neighbor distances.
+
+
+# # we can see that the envelopes are generally above the observed function, meaining that our point pattern is dispersed.
+
+# # The L function is a scaled version of function, defined in order to assist with interpretation. 
+# # The expected value of the function increases with ; this makes sense, since the number of pairs of points closer than will increase as increases. 
+# # So, we can define a normalization of that removes this increase as increases.
+
+
+
+
+LR_std_dist=[]; 
+LR_CLUSTERED = []; LR_DISPERSED = []
+LR_GIO = []; LR_GIR = []
+LR_FIO = []; LR_FIR = []
+LR_GTEST = []; LR_FTEST = []
+for time in times:
+    tmp = LRwood_geotiffs_ds.wood.sel(time=time)
+    for g in tqdm(LRbudget_reaches_redo):
+        wood_c = tmp.rio.clip([g], tmp.rio.crs)
+        label_img = label(wood_c==1)
+        props = regionprops_table(label_img, properties=('area','axis_minor_length','centroid','orientation', 'coords'))
+        # LR_props.append(props)
+        try:
+            dat = np.vstack(props['coords'])
+
+            ## A measure of dispersion that is common in centrography is the standard distance. 
+            # This measure provides the average distance away from the center of the point cloud (such as measured by the center of mass).
+            # centrography.std_distance(coordinates)
+            LR_std_dist.append(centrography.std_distance(dat))
+
+            # print("Computing Ripley's G")
+            g_test = distance_statistics.g_test(dat[::5], support=40, keep_simulations=True)
+            LR_GTEST.append(g_test)
+
+            ##where support=2
+            # the observed % of nearest neighbor distances shorter than a distance of 2 
+            g_index2_obs = g_test.statistic[np.where(g_test.support>2)[0][0]]
+            g_index2_random = np.median(g_test.simulations, axis=0)[np.where(g_test.support>2)[0][0]]
+
+            LR_GIO.append(g_index2_obs)
+            LR_GIR.append(g_index2_random)
+            LR_CLUSTERED.append(g_index2_obs>g_index2_random)
+
+            # Where the G function works by analyzing the distance between points in the pattern, 
+            # the F function works by analyzing the distance to points in the pattern from locations in empty space
+            # it characterizes the typical distance from arbitrary points in empty space to the point pattern. 
+            # More explicitly, the F accumulates, for a growing distance range, 
+            # the percentage of points that can be found within that range from a random point pattern generated within the extent of the observed pattern. 
+            # If the pattern has large gaps or empty areas, the F function will increase slowly. 
+            # But, if the pattern is highly dispersed, then the F function will increase rapidly. 
+            # The shape of this cumulative distribution is then compared to those constructed 
+            # by calculating the same cumulative distribution between the random pattern and an additional, random one generated in each simulation step.
+
+            # print("Computing Ripley's F")
+            f_test = distance_statistics.f_test(dat[::5], support=40, keep_simulations=True)
+            LR_FTEST.append(f_test)
+
+            f_index2_obs = f_test.statistic[np.where(f_test.support>2)[0][0]]
+            f_index2_random = np.median(f_test.simulations, axis=0)[np.where(f_test.support>2)[0][0]]
+
+            LR_FIO.append(f_index2_obs)
+            LR_FIR.append(f_index2_random)
+            LR_DISPERSED.append(f_index2_obs>f_index2_random)
+        except:
+
+            LR_GIO.append(np.nan)
+            LR_GIR.append(np.nan)
+            LR_CLUSTERED.append(np.nan)
+
+            LR_GTEST.append(np.nan)
+            LR_FTEST.append(np.nan)
+
+            LR_FIO.append(np.nan)
+            LR_FIR.append(np.nan)
+            LR_DISPERSED.append(np.nan)
+
+np.savez('summaries/LR_spatial_metrics.npz', LR_GIO = LR_GIO, LR_GIR = LR_GIR, LR_CLUSTERED = LR_CLUSTERED, LR_GTEST = LR_GTEST, LR_FTEST=LR_FTEST, LR_FIO=LR_FIO, LR_FIR=LR_FIR, LR_DISPERSED=LR_DISPERSED)
+
+#######################################################
+
+
+MR_std_dist=[]; 
+MR_CLUSTERED = []; MR_DISPERSED = []
+MR_GIO = []; MR_GIR = []
+MR_FIO = []; MR_FIR = []
+MR_GTEST = []; MR_FTEST = []
+for time in times:
+    tmp = MRwood_geotiffs_ds.wood.sel(time=time)
+    for g in tqdm(MRbudget_reaches_redo):
+        wood_c = tmp.rio.clip([g], tmp.rio.crs)
+        label_img = label(wood_c==1)
+        props = regionprops_table(label_img, properties=('area','axis_minor_length','centroid','orientation', 'coords'))
+        # MR_props.append(props)
+        try:
+            dat = np.vstack(props['coords'])
+
+            ## A measure of dispersion that is common in centrography is the standard distance. 
+            # This measure provides the average distance away from the center of the point cloud (such as measured by the center of mass).
+            # centrography.std_distance(coordinates)
+            MR_std_dist.append(centrography.std_distance(dat))
+
+            # print("Computing Ripley's G")
+            g_test = distance_statistics.g_test(dat[::5], support=40, keep_simulations=True)
+            MR_GTEST.append(g_test)
+
+            ##where support=2
+            # the observed % of nearest neighbor distances shorter than a distance of 2 
+            g_index2_obs = g_test.statistic[np.where(g_test.support>2)[0][0]]
+            g_index2_random = np.median(g_test.simulations, axis=0)[np.where(g_test.support>2)[0][0]]
+
+            MR_GIO.append(g_index2_obs)
+            MR_GIR.append(g_index2_random)
+            MR_CLUSTERED.append(g_index2_obs>g_index2_random)
+
+            # Where the G function works by analyzing the distance between points in the pattern, 
+            # the F function works by analyzing the distance to points in the pattern from locations in empty space
+            # it characterizes the typical distance from arbitrary points in empty space to the point pattern. 
+            # More explicitly, the F accumulates, for a growing distance range, 
+            # the percentage of points that can be found within that range from a random point pattern generated within the extent of the observed pattern. 
+            # If the pattern has large gaps or empty areas, the F function will increase slowly. 
+            # But, if the pattern is highly dispersed, then the F function will increase rapidly. 
+            # The shape of this cumulative distribution is then compared to those constructed 
+            # by calculating the same cumulative distribution between the random pattern and an additional, random one generated in each simulation step.
+
+            # print("Computing Ripley's F")
+            f_test = distance_statistics.f_test(dat[::5], support=40, keep_simulations=True)
+            MR_FTEST.append(f_test)
+
+            f_index2_obs = f_test.statistic[np.where(f_test.support>2)[0][0]]
+            f_index2_random = np.median(f_test.simulations, axis=0)[np.where(f_test.support>2)[0][0]]
+
+            MR_FIO.append(f_index2_obs)
+            MR_FIR.append(f_index2_random)
+            MR_DISPERSED.append(f_index2_obs>f_index2_random)
+        except:
+
+            MR_GIO.append(np.nan)
+            MR_GIR.append(np.nan)
+            MR_CLUSTERED.append(np.nan)
+
+            MR_GTEST.append(np.nan)
+            MR_FTEST.append(np.nan)
+
+            MR_FIO.append(np.nan)
+            MR_FIR.append(np.nan)
+            MR_DISPERSED.append(np.nan)
+
+
+
+np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, MR_CLUSTERED = MR_CLUSTERED, MR_GTEST = MR_GTEST, MR_FTEST=MR_FTEST, MR_FIO=MR_FIO, MR_FIR=MR_FIR, MR_DISPERSED=MR_DISPERSED)
+
+
+
+
+
+# plt.plot(y,xi,'ko', label='MR')
+
+# plt.plot(y,xi,'rs', label='LR')
+# plt.title('c) ', loc='left'); 
+# plt.legend()
+# plt.ylabel("Maximum\nautocorrelation (-)"); plt.xlabel("Maximum active\nchannel width (m)");
+# plt.ylim(0,.4)
+
+
+
+
+# fig, ax = plt.subplots(nrows=2, ncols=3)
+# fig.set_size_inches(16,12)
+# plt.subplots_adjust(wspace=0.6, hspace=0.2)
+
+# # ####### flow
+# # # plt.subplot(221)
+# # # ax[0][0].plot(dt, np.nansum(MR_DISPERSED,axis=1)/len(MRbudget_reaches_redo),'k-', label='MR wood')
+# # ax[0][0].plot(dt, np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo),'r--', label='LR wood')
+# # # ax[0][0].set_ylabel('Total wood area (m2)')
+
+# # ax2 = ax[0][0].twinx()
+# # # ax2.plot(dt, np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)); 
+# # df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Daily Discharge (m3/s)'].mean()
+# # df_mnth_Q.plot(axes=ax2,label='Monthly mean\n discharge')
+# # # ax2.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'b-', alpha=0.5, label='Daily discharge')
+# # ax2.set_ylabel(r'Daily Discharge (m$^3$/s)', color='b')
+# # ax[0][0].set_title('a) ', loc='left')
+
+# # # ax2.plot(dt, OQ, 'b-o') #, legend='Discharge at image acquisition'
+# # plt.show()
+
+# plt.subplot(221)
+# y = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
+# plt.plot(dt, y/np.nanmax(y))
+
+# # plt.subplot(222)
+# df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="Y"))['Daily Discharge (m3/s)'].mean()
+# df_mnth_Q = df_mnth_Q/np.nanmax(df_mnth_Q)
+# df_mnth_Q.plot(label='Annual mean\n discharge')
+
+# plt.subplot(222)
+# y = np.nansum(LR_CLUSTERED,axis=1)/len(LRbudget_reaches_redo)
+# plt.plot(dt, y/np.nanmax(y))
+
+# # plt.subplot(223)
+# df_mnth_L = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="Y"))['Total sediment discharge (tonnes)'].mean()
+# df_mnth_L = df_mnth_L/np.nanmax(df_mnth_L)
+# df_mnth_L.plot(label='Annual mean\n sediment load')
+
+# # plt.subplot(223)
+
+# # plt.ylabel(r"Water discharge (m/s$^3$)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+# # plt.xlabel('')
+# # plt.legend()
+# # plt.title('c) ', loc='left');
+
+# # plt.subplot(224)
+
+# # plt.ylabel("Sediment load (tonnes)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
+# # plt.xlabel('')
+# # plt.legend(loc=2)
+# # plt.title('d)', loc='left');
+
+# plt.show()
+
+
+# plt.plot(np.nanmean(LR_FIO,axis=1)); plt.show()
+
+# plt.plot(np.nansum(LR_CLUSTERED,axis=1), np.nansum(LR_DISPERSED,axis=1), 'ko'); plt.show()
 
 
 
@@ -1249,445 +1710,6 @@ plt.close()
 ######################################################
 ######################################################
 
-with np.load('../results/LR_spatial_metrics.npz', allow_pickle=True) as f:
-    LR_GIO = f['LR_GIO']
-    LR_GIR = f['LR_GIR']
-    LR_CLUSTERED = f['LR_CLUSTERED']
-    LR_GTEST = f['LR_GTEST']
-    LR_FTEST=f['LR_FTEST']
-    LR_FIO=f['LR_FIO']
-    LR_FIR=f['LR_FIR']
-    LR_DISPERSED=f['LR_DISPERSED']
-
-
-F=[]
-for k in LR_FTEST:
-    try:
-        F.append(k[1])
-    except:
-        F.append(np.ones(40)*np.nan)
-    # try:
-    #     F.append(k[1]) #[4][1])
-    # except: 
-    #     F.append(k[6][1])
-
-LR_DISPERSED = np.array(LR_DISPERSED).reshape(len(times),len(LRbudget_reaches_redo))
-LR_CLUSTERED = np.array(LR_CLUSTERED).reshape(len(times),len(LRbudget_reaches_redo))
-
-# LR_FTEST = np.array(LR_FTEST).reshape(len(times),len(LRbudget_reaches_redo))
-LR_FIO = np.array(LR_FIO).reshape(len(times),len(LRbudget_reaches_redo))
-LR_FIR = np.array(LR_FIR).reshape(len(times),len(LRbudget_reaches_redo))
-
-# LR_GTEST = np.array(LR_GTEST).reshape(len(times),len(LRbudget_reaches_redo))
-LR_GIO = np.array(LR_GIO).reshape(len(times),len(LRbudget_reaches_redo))
-LR_GIR = np.array(LR_GIR).reshape(len(times),len(LRbudget_reaches_redo))
-
-
-
-
-with np.load('../results/MR_spatial_metrics.npz', allow_pickle=True) as f:
-    MR_GIO = f['MR_GIO']
-    MR_GIR = f['MR_GIR']
-    MR_CLUSTERED = f['MR_CLUSTERED']
-    MR_GTEST = f['MR_GTEST']
-    MR_FTEST=f['MR_FTEST']
-    MR_FIO=f['MR_FIO']
-    MR_FIR=f['MR_FIR']
-    MR_DISPERSED=f['MR_DISPERSED']
-
-
-# FMR=[]
-# for k in MR_FTEST:
-#     try:
-#         FMR.append(k[4][1])
-#     except: 
-#         FMR.append(k[6][1])
-
-MR_DISPERSED = np.array(MR_DISPERSED).reshape(len(times),len(MRbudget_reaches_redo))
-MR_CLUSTERED = np.array(MR_CLUSTERED).reshape(len(times),len(MRbudget_reaches_redo))
-
-# MR_FTEST = np.array(MR_FTEST).reshape(len(times),len(MRbudget_reaches_redo))
-MR_FIO = np.array(MR_FIO).reshape(len(times),len(MRbudget_reaches_redo))
-MR_FIR = np.array(MR_FIR).reshape(len(times),len(MRbudget_reaches_redo))
-
-# MR_GTEST = np.array(MR_GTEST).reshape(len(times),len(MRbudget_reaches_redo))
-MR_GIO = np.array(MR_GIO).reshape(len(times),len(MRbudget_reaches_redo))
-MR_GIR = np.array(MR_GIR).reshape(len(times),len(MRbudget_reaches_redo))
-
-
-
-# with np.load('summaries/Wood_time_series.npz', allow_pickle=True) as f:
-#     LR_BRarr = f['LR_BRarr']
-#     MR_BRarr = f['MR_BRarr']
-#     dt = f['dt']
-#     grid2sqm = f['grid2sqm']
-
-# dists = pd.read_csv('br_dists.csv')
-# LR = np.hstack((0,np.array(dists['LR'])))
-# MR = np.hstack((0,np.array(dists['MR'][:43])))
-
-# #### divide out by area of each BR for a wood concentration\
-# A_MR = np.array(A_MR)
-# A_LR = np.array(A_LR)
-
-# ## wood
-# MR_BRarr_c = MR_BRarr/A_MR
-# LR_BRarr_c = LR_BRarr/A_LR
-
-dt = np.array(dt)
-
-
-
-fig, ax = plt.subplots(nrows=2, ncols=3)
-fig.set_size_inches(16,8)
-plt.subplots_adjust(wspace=0.4, hspace=0.4)
-
-prop_disp = np.nansum(MR_DISPERSED,axis=1)/len(MRbudget_reaches_redo)
-y = np.nanmean(MR_FIO,axis=-1)
-y2 = np.nanmean(MR_FIR,axis=-1)
-
-ax[0][0].plot(dt, y, 'k:', lw=3, label='Observed')
-ax[0][0].plot(dt, y2, 'm--', label='Random')
-ax[0][0].set_ylabel('Reach-averaged F-test statistic', color='m')
-ax[0][0].set_title('a) MR', loc='left');
-ax[0][0].legend(loc=3)
-ax[0][0].set_ylim(0,.65)
-
-ax20 = ax[0][0].twinx()
-# ax2.plot(dt, prop_disp,'b')
-ind = np.where(y>y2)[0]
-ax20.plot(dt[ind], prop_disp[ind],'b-o')
-ind = np.where(y<y2)[0]
-ax20.plot(dt[ind], prop_disp[ind],'go')
-ax20.set_ylabel('Proportion of reach dispersed', color='b')
-ax20.set_ylim(0,.75)
-
-prop_disp = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
-y = np.nanmean(LR_FIO,axis=-1)
-y2 = np.nanmean(LR_FIR,axis=-1)
-
-ax[1][0].plot(dt, y, 'r:', lw=3, label='Observed')
-ax[1][0].plot(dt, y2, 'm--', label='Random')
-ax[1][0].set_ylabel('Reach-averaged F-test statistic', color='m')
-ax[1][0].set_title('b) LR', loc='left');
-ax[1][0].legend(loc=3)
-ax[1][0].set_ylim(0,.65)
-
-ax2 = ax[1][0].twinx()
-# ax2.plot(dt, prop_disp,'b')
-ind = np.where(y>y2)[0]
-ax2.plot(dt[ind], prop_disp[ind],'b-o')
-ind = np.where(y<y2)[0]
-ax2.plot(dt[ind], prop_disp[ind],'go')
-ax2.set_ylabel('Proportion of reach dispersed', color='b')
-ax2.set_ylim(0,.75)
-
-##### dfispersion versus persistence
-ax[0][1].plot(np.nanmedian(MR_PC2,axis=0), np.nanmedian(MR_FIO,axis=0),'ko', label='MR')
-ax[0][1].plot(np.nanmedian(LR_PC2,axis=0), np.nanmedian(LR_FIO,axis=0),'rs', label='LR')
-ax[0][1].set_ylabel('Dispersion; median F-score (-)', color='k')
-ax[0][1].set_xlabel('Persistence; median autocorrelation (-)', color='k')
-ax[0][1].set_title('c)', loc='left');
-ax[0][1].legend(loc=3)
-ax[0][1].set_ylim(0,1.03)
-ax[0][1].set_xlim(0,1.03)
-
-##### dfispersion versus width
-# x = np.nanmax(MR_FIO,axis=0)
-x = np.nanmedian(MR_FIO,axis=0)
-y = MR_full_width.copy()
-xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
-ax[1][1].plot(y, xi,'ko', label='MR')
-
-# x = np.nanmax(LR_FIO,axis=0)
-x = np.nanmedian(LR_FIO,axis=0)
-y = LR_full_width.copy()
-xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
-ax[1][1].plot(y, xi,'rs', label='LR')
-
-ax[1][1].set_ylabel('Dispersion; median F-score (-)', color='k')
-ax[1][1].set_xlabel('Channel width (m)', color='k')
-ax[1][1].set_title('d)', loc='left');
-ax[1][1].legend(loc=4)
-ax[1][1].set_ylim(0,1.03)
-# ax[1][1].set_xlim(0,300)
-
-##### dfispersion versus persistence
-ax[0][2].plot(np.nanmax(MR_PC2,axis=0), np.nanmax(MR_FIO,axis=0),'ko', label='MR')
-ax[0][2].plot(np.nanmax(LR_PC2,axis=0), np.nanmax(LR_FIO,axis=0),'rs', label='LR')
-ax[0][2].set_ylabel('Dispersion; maximum F-score (-)', color='k')
-ax[0][2].set_xlabel('Persistence; maximum autocorrelation (-)', color='k')
-ax[0][2].set_title('e)', loc='left');
-ax[0][2].legend(loc=3)
-ax[0][2].set_ylim(0,1.03)
-ax[0][2].set_xlim(0,1.03)
-
-##### dfispersion versus width
-x = np.nanmax(MR_FIO,axis=0)
-# x = np.nanmedian(MR_FIO,axis=0)
-y = MR_full_width.copy()
-xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
-ax[1][2].plot(y, xi,'ko', label='MR')
-
-x = np.nanmax(LR_FIO,axis=0)
-# x = np.nanmedian(LR_FIO,axis=0)
-y = LR_full_width.copy()
-xi = np.interp(np.linspace(np.nanmin(x), np.nanmax(x),len(y)),np.linspace(0,len(x),len(x)),x,period=1)
-ax[1][2].plot(y, xi,'rs', label='LR')
-
-ax[1][2].set_ylabel('Dispersion; maximum F-score (-)', color='k')
-ax[1][2].set_xlabel('Channel width (m)', color='k')
-ax[1][2].set_title('f)', loc='left');
-ax[1][2].legend(loc=4)
-ax[1][1].set_ylim(0,1.03)
-# ax[1][1].set_xlim(0,300)
-
-# plt.show()
-
-plt.savefig("summaries/dispersion_stats.png", dpi=300, bbox_inches="tight")
-plt.close()
-
-
-
-
-
-
-# plt.plot(y,xi,'ko', label='MR')
-
-# plt.plot(y,xi,'rs', label='LR')
-# plt.title('c) ', loc='left'); 
-# plt.legend()
-# plt.ylabel("Maximum\nautocorrelation (-)"); plt.xlabel("Maximum active\nchannel width (m)");
-# plt.ylim(0,.4)
-
-
-
-
-# fig, ax = plt.subplots(nrows=2, ncols=3)
-# fig.set_size_inches(16,12)
-# plt.subplots_adjust(wspace=0.6, hspace=0.2)
-
-# # ####### flow
-# # # plt.subplot(221)
-# # # ax[0][0].plot(dt, np.nansum(MR_DISPERSED,axis=1)/len(MRbudget_reaches_redo),'k-', label='MR wood')
-# # ax[0][0].plot(dt, np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo),'r--', label='LR wood')
-# # # ax[0][0].set_ylabel('Total wood area (m2)')
-
-# # ax2 = ax[0][0].twinx()
-# # # ax2.plot(dt, np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)); 
-# # df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="M"))['Daily Discharge (m3/s)'].mean()
-# # df_mnth_Q.plot(axes=ax2,label='Monthly mean\n discharge')
-# # # ax2.plot(dt_sed[ind], sed_load['Daily Discharge (m3/s)'][ind],'b-', alpha=0.5, label='Daily discharge')
-# # ax2.set_ylabel(r'Daily Discharge (m$^3$/s)', color='b')
-# # ax[0][0].set_title('a) ', loc='left')
-
-# # # ax2.plot(dt, OQ, 'b-o') #, legend='Discharge at image acquisition'
-# # plt.show()
-
-# plt.subplot(221)
-# y = np.nansum(LR_DISPERSED,axis=1)/len(LRbudget_reaches_redo)
-# plt.plot(dt, y/np.nanmax(y))
-
-# # plt.subplot(222)
-# df_mnth_Q = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="Y"))['Daily Discharge (m3/s)'].mean()
-# df_mnth_Q = df_mnth_Q/np.nanmax(df_mnth_Q)
-# df_mnth_Q.plot(label='Annual mean\n discharge')
-
-# plt.subplot(222)
-# y = np.nansum(LR_CLUSTERED,axis=1)/len(LRbudget_reaches_redo)
-# plt.plot(dt, y/np.nanmax(y))
-
-# # plt.subplot(223)
-# df_mnth_L = sed_load.groupby(pd.PeriodIndex(sed_load['Day'], freq="Y"))['Total sediment discharge (tonnes)'].mean()
-# df_mnth_L = df_mnth_L/np.nanmax(df_mnth_L)
-# df_mnth_L.plot(label='Annual mean\n sediment load')
-
-# # plt.subplot(223)
-
-# # plt.ylabel(r"Water discharge (m/s$^3$)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
-# # plt.xlabel('')
-# # plt.legend()
-# # plt.title('c) ', loc='left');
-
-# # plt.subplot(224)
-
-# # plt.ylabel("Sediment load (tonnes)"); #plt.xlabel(r"Mean Autocorrelation coefficient")
-# # plt.xlabel('')
-# # plt.legend(loc=2)
-# # plt.title('d)', loc='left');
-
-# plt.show()
-
-
-# plt.plot(np.nanmean(LR_FIO,axis=1)); plt.show()
-
-# plt.plot(np.nansum(LR_CLUSTERED,axis=1), np.nansum(LR_DISPERSED,axis=1), 'ko'); plt.show()
-
-
-######################################################
-    
-# MR_props=[]
-# for time in times:
-#     tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-#     for g in tqdm(MRbudget_reaches_redo):
-#         wood_c = tmp.rio.clip([g], tmp.rio.crs)
-#         label_img = label(wood_c==1)
-#         props = regionprops_table(label_img, properties=('area','axis_minor_length','centroid','orientation', 'coords'))
-#         MR_props.append(props)
-
-#######################################################
-
-
-#Centrography is the analysis of centrality in a point pattern. 
-# By “centrality,” we mean the general location and dispersion of the pattern. 
-# centrography is the point pattern equivalent of measures of central tendency such as the mean. 
-# These measures are useful because they allow us to summarize spatial distributions in smaller sets of information (e.g., a single point). 
-# Many different indices are used in centrography to provide an indication of “where” a point pattern is, 
-# how tightly the point pattern clusters around its center, or how irregular its shape is.
-
-
-LR_std_dist=[]; 
-LR_CLUSTERED = []; LR_DISPERSED = []
-LR_GIO = []; LR_GIR = []
-LR_FIO = []; LR_FIR = []
-LR_GTEST = []; LR_FTEST = []
-for time in times:
-    tmp = LRwood_geotiffs_ds.wood.sel(time=time)
-    for g in tqdm(LRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        label_img = label(wood_c==1)
-        props = regionprops_table(label_img, properties=('area','axis_minor_length','centroid','orientation', 'coords'))
-        # LR_props.append(props)
-        try:
-            dat = np.vstack(props['coords'])
-
-            ## A measure of dispersion that is common in centrography is the standard distance. 
-            # This measure provides the average distance away from the center of the point cloud (such as measured by the center of mass).
-            # centrography.std_distance(coordinates)
-            LR_std_dist.append(centrography.std_distance(dat))
-
-            # print("Computing Ripley's G")
-            g_test = distance_statistics.g_test(dat[::5], support=40, keep_simulations=True)
-            LR_GTEST.append(g_test)
-
-            ##where support=2
-            # the observed % of nearest neighbor distances shorter than a distance of 2 
-            g_index2_obs = g_test.statistic[np.where(g_test.support>2)[0][0]]
-            g_index2_random = np.median(g_test.simulations, axis=0)[np.where(g_test.support>2)[0][0]]
-
-            LR_GIO.append(g_index2_obs)
-            LR_GIR.append(g_index2_random)
-            LR_CLUSTERED.append(g_index2_obs>g_index2_random)
-
-            # Where the G function works by analyzing the distance between points in the pattern, 
-            # the F function works by analyzing the distance to points in the pattern from locations in empty space
-            # it characterizes the typical distance from arbitrary points in empty space to the point pattern. 
-            # More explicitly, the F accumulates, for a growing distance range, 
-            # the percentage of points that can be found within that range from a random point pattern generated within the extent of the observed pattern. 
-            # If the pattern has large gaps or empty areas, the F function will increase slowly. 
-            # But, if the pattern is highly dispersed, then the F function will increase rapidly. 
-            # The shape of this cumulative distribution is then compared to those constructed 
-            # by calculating the same cumulative distribution between the random pattern and an additional, random one generated in each simulation step.
-
-            # print("Computing Ripley's F")
-            f_test = distance_statistics.f_test(dat[::5], support=40, keep_simulations=True)
-            LR_FTEST.append(f_test)
-
-            f_index2_obs = f_test.statistic[np.where(f_test.support>2)[0][0]]
-            f_index2_random = np.median(f_test.simulations, axis=0)[np.where(f_test.support>2)[0][0]]
-
-            LR_FIO.append(f_index2_obs)
-            LR_FIR.append(f_index2_random)
-            LR_DISPERSED.append(f_index2_obs>f_index2_random)
-        except:
-
-            LR_GIO.append(np.nan)
-            LR_GIR.append(np.nan)
-            LR_CLUSTERED.append(np.nan)
-
-            LR_GTEST.append(np.nan)
-            LR_FTEST.append(np.nan)
-
-            LR_FIO.append(np.nan)
-            LR_FIR.append(np.nan)
-            LR_DISPERSED.append(np.nan)
-
-np.savez('summaries/LR_spatial_metrics.npz', LR_GIO = LR_GIO, LR_GIR = LR_GIR, LR_CLUSTERED = LR_CLUSTERED, LR_GTEST = LR_GTEST, LR_FTEST=LR_FTEST, LR_FIO=LR_FIO, LR_FIR=LR_FIR, LR_DISPERSED=LR_DISPERSED)
-
-#######################################################
-
-
-MR_std_dist=[]; 
-MR_CLUSTERED = []; MR_DISPERSED = []
-MR_GIO = []; MR_GIR = []
-MR_FIO = []; MR_FIR = []
-MR_GTEST = []; MR_FTEST = []
-for time in times:
-    tmp = MRwood_geotiffs_ds.wood.sel(time=time)
-    for g in tqdm(MRbudget_reaches_redo):
-        wood_c = tmp.rio.clip([g], tmp.rio.crs)
-        label_img = label(wood_c==1)
-        props = regionprops_table(label_img, properties=('area','axis_minor_length','centroid','orientation', 'coords'))
-        # MR_props.append(props)
-        try:
-            dat = np.vstack(props['coords'])
-
-            ## A measure of dispersion that is common in centrography is the standard distance. 
-            # This measure provides the average distance away from the center of the point cloud (such as measured by the center of mass).
-            # centrography.std_distance(coordinates)
-            MR_std_dist.append(centrography.std_distance(dat))
-
-            # print("Computing Ripley's G")
-            g_test = distance_statistics.g_test(dat[::5], support=40, keep_simulations=True)
-            MR_GTEST.append(g_test)
-
-            ##where support=2
-            # the observed % of nearest neighbor distances shorter than a distance of 2 
-            g_index2_obs = g_test.statistic[np.where(g_test.support>2)[0][0]]
-            g_index2_random = np.median(g_test.simulations, axis=0)[np.where(g_test.support>2)[0][0]]
-
-            MR_GIO.append(g_index2_obs)
-            MR_GIR.append(g_index2_random)
-            MR_CLUSTERED.append(g_index2_obs>g_index2_random)
-
-            # Where the G function works by analyzing the distance between points in the pattern, 
-            # the F function works by analyzing the distance to points in the pattern from locations in empty space
-            # it characterizes the typical distance from arbitrary points in empty space to the point pattern. 
-            # More explicitly, the F accumulates, for a growing distance range, 
-            # the percentage of points that can be found within that range from a random point pattern generated within the extent of the observed pattern. 
-            # If the pattern has large gaps or empty areas, the F function will increase slowly. 
-            # But, if the pattern is highly dispersed, then the F function will increase rapidly. 
-            # The shape of this cumulative distribution is then compared to those constructed 
-            # by calculating the same cumulative distribution between the random pattern and an additional, random one generated in each simulation step.
-
-            # print("Computing Ripley's F")
-            f_test = distance_statistics.f_test(dat[::5], support=40, keep_simulations=True)
-            MR_FTEST.append(f_test)
-
-            f_index2_obs = f_test.statistic[np.where(f_test.support>2)[0][0]]
-            f_index2_random = np.median(f_test.simulations, axis=0)[np.where(f_test.support>2)[0][0]]
-
-            MR_FIO.append(f_index2_obs)
-            MR_FIR.append(f_index2_random)
-            MR_DISPERSED.append(f_index2_obs>f_index2_random)
-        except:
-
-            MR_GIO.append(np.nan)
-            MR_GIR.append(np.nan)
-            MR_CLUSTERED.append(np.nan)
-
-            MR_GTEST.append(np.nan)
-            MR_FTEST.append(np.nan)
-
-            MR_FIO.append(np.nan)
-            MR_FIR.append(np.nan)
-            MR_DISPERSED.append(np.nan)
-
-
-
-np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, MR_CLUSTERED = MR_CLUSTERED, MR_GTEST = MR_GTEST, MR_FTEST=MR_FTEST, MR_FIO=MR_FIO, MR_FIR=MR_FIR, MR_DISPERSED=MR_DISPERSED)
-
-
 
 
 
@@ -1996,181 +2018,3 @@ np.savez('summaries/MR_spatial_metrics.npz', MR_GIO = MR_GIO, MR_GIR = MR_GIR, M
 
 # dbLR = pd.DataFrame.from_records(LR_props)
 # coordinates = dbLR[["x", "y"]]
-
-### pip install pointpats
-# Point Pattern Analysis
-### https://geographicdata.science/book/notebooks/08_point_pattern_analysis.html
-#Centrography is the analysis of centrality in a point pattern. 
-# By “centrality,” we mean the general location and dispersion of the pattern. 
-# centrography is the point pattern equivalent of measures of central tendency such as the mean. 
-# These measures are useful because they allow us to summarize spatial distributions in smaller sets of information (e.g., a single point). 
-# Many different indices are used in centrography to provide an indication of “where” a point pattern is, how tightly the point pattern clusters around its center, or how irregular its shape is.
-
-
-## A measure of dispersion that is common in centrography is the standard distance. 
-# This measure provides the average distance away from the center of the point cloud (such as measured by the center of mass).
-# centrography.std_distance(coordinates)
-
-# dispersion: whether points tend to all cluster near one another or disperse evenly throughout the area. 
-# The first set of techniques, quadrat statistics, receive their name after their approach to split the data up into small areas (quadrants). Once created, these “buckets” are used to examine the uniformity of counts across them. The second set of techniques all derive from Ripley (1988) and involve measurements of the distance between points in a point pattern.
-
-# Ripley’s alphabet of functions
-
-# The second group of spatial statistics we consider focuses on the distributions of two quantities in a point pattern: nearest neighbor distances and what we will term “gaps” in the pattern. They derive from seminal work by [Rip91] on how to characterize clustering or co-location in point patterns. Each of these characterizes an aspect of the point pattern as we increase the distance range from each point to calculate them.
-
-# The first function, Ripley’s
-# , focuses on the distribution of nearest neighbor distances. That is, the
-# function summarizes the distances between each point in the pattern and its nearest neighbor. 
-
-# Ripley’s G keeps track of the proportion of points for which the nearest neighbor is within a given distance threshold, and plots that cumulative percentage against the increasing distance radii. The distribution of these cumulative percentages has a distinctive shape under completely spatially random processes. The intuition behind Ripley’s G goes as follows: we can learn about how similar our pattern is to a spatially random one by computing the cumulative distribution of nearest neighbor distances over increasing distance thresholds, and comparing it to that of a set of simulated patterns that follow a known spatially random process. Usually, a spatial Poisson point process is used as such reference distribution.
-
-# g_test = distance_statistics.g_test(
-#     coordinates, support=40, keep_simulations=True
-# )
-
-# Thinking about these distributions of distances, a “clustered” pattern must have more points near one another than a pattern that is “dispersed”; and a completely random pattern should have something in between. Therefore, if the function increases rapidly with distance, we probably have a clustered pattern. If it increases slowly with distance, we have a dispersed pattern. Something in the middle will be difficult to distinguish from pure chance.
-
-# if the red empirical function rises much faster than simulated completely spatially random patterns,
-# the observed pattern of the data are closer to their nearest neighbors than would be expected from a completely spatially random pattern
-# The pattern is clustered.
-
-# f, ax = plt.subplots(
-#     1, 2, figsize=(9, 3), gridspec_kw=dict(width_ratios=(6, 3))
-# )
-# # plot all the simulations with very fine lines
-# ax[0].plot(
-#     g_test.support, g_test.simulations.T, color="k", alpha=0.01
-# )
-# # and show the average of simulations
-# ax[0].plot(
-#     g_test.support,
-#     np.median(g_test.simulations, axis=0),
-#     color="cyan",
-#     label="median simulation",
-# )
-
-# # and the observed pattern's G function
-# ax[0].plot(
-#     g_test.support, g_test.statistic, label="observed", color="red"
-# )
-
-# # clean up labels and axes
-# ax[0].set_xlabel("distance")
-# ax[0].set_ylabel("% of nearest neighbor\ndistances shorter")
-# ax[0].legend()
-# ax[0].set_xlim(0, 2000)
-# ax[0].set_title(r"Ripley's $G(d)$ function")
-
-# # plot the pattern itself on the next frame
-# ax[1].scatter(*coordinates.T)
-
-# # and clean up labels and axes there, too
-# ax[1].set_xticks([])
-# ax[1].set_yticks([])
-# ax[1].set_xticklabels([])
-# ax[1].set_yticklabels([])
-# ax[1].set_title("Pattern")
-# f.tight_layout()
-# plt.show()
-
-# # The second function we introduce is Ripley’s F. 
-# # Where the G function works by analyzing the distance between points in the pattern, the F function works by analyzing the distance to points in the pattern from locations in empty space
-# # it characterizes the typical distance from arbitrary points in empty space to the point pattern. 
-# # More explicitly, the F accumulates, for a growing distance range, the percentage of points that can be found within that range from a random point pattern generated within the extent of the observed pattern. If the pattern has large gaps or empty areas, the F function will increase slowly. 
-# # But, if the pattern is highly dispersed, then the F function will increase rapidly. 
-# # The shape of this cumulative distribution is then compared to those constructed by calculating the same cumulative distribution between the random pattern and an additional, random one generated in each simulation step.
-
-# f_test = distance_statistics.f_test(
-#     coordinates, support=40, keep_simulations=True
-# )
-
-# f, ax = plt.subplots(
-#     1, 2, figsize=(9, 3), gridspec_kw=dict(width_ratios=(6, 3))
-# )
-
-# # plot all the simulations with very fine lines
-# ax[0].plot(
-#     f_test.support, f_test.simulations.T, color="k", alpha=0.01
-# )
-# # and show the average of simulations
-# ax[0].plot(
-#     f_test.support,
-#     numpy.median(f_test.simulations, axis=0),
-#     color="cyan",
-#     label="median simulation",
-# )
-
-
-# # and the observed pattern's F function
-# ax[0].plot(
-#     f_test.support, f_test.statistic, label="observed", color="red"
-# )
-
-# # clean up labels and axes
-# ax[0].set_xlabel("distance")
-# ax[0].set_ylabel("% of nearest point in pattern\ndistances shorter")
-# ax[0].legend()
-# ax[0].set_xlim(0, 2000)
-# ax[0].set_title(r"Ripley's $F(d)$ function")
-
-# # plot the pattern itself on the next frame
-# ax[1].scatter(*coordinates.T)
-
-# # and clean up labels and axes there, too
-# ax[1].set_xticks([])
-# ax[1].set_yticks([])
-# ax[1].set_xticklabels([])
-# ax[1].set_yticklabels([])
-# ax[1].set_title("Pattern")
-# f.tight_layout()
-# plt.show()
-
-
-# # https://github.com/pysal/pointpats/blob/main/notebooks/distance_statistics-numpy-oriented.ipynb
-
-# # Interevent Distance Functions
-
-# # While both the F and G functions are useful, they only consider the distance between each point and its nearest point. 
-
-# # the K function is a scaled version of the cumulative density function for all distances within a point pattern. 
-# # As such, it's a "relative" of the function that considers all distances, not just the nearest neighbor distances.
-
-# k_test = ripley.k_test(points, keep_simulations=True)
-
-# plt.plot(k_test.support, k_test.simulations.T, color='k', alpha=.01)
-# plt.plot(k_test.support, k_test.statistic, color='orangered')
-
-# plt.scatter(k_test.support, k_test.statistic, 
-#             cmap='viridis', c=k_test.pvalue < .05,
-#             zorder=4 # make sure they plot on top
-#            )
-
-# plt.xlabel('Distance')
-# plt.ylabel('K Function')
-# plt.title('K Function Plot')
-# plt.show()
-
-
-# # we can see that the envelopes are generally above the observed function, meaining that our point pattern is dispersed.
-
-# # The L function is a scaled version of function, defined in order to assist with interpretation. 
-# # The expected value of the function increases with ; this makes sense, since the number of pairs of points closer than will increase as increases. 
-# # So, we can define a normalization of that removes this increase as increases.
-
-# l_test = ripley.l_test(points, keep_simulations=True)
-
-
-
-# plt.plot(l_test.support, l_test.simulations.T, color='k', alpha=.01)
-# plt.plot(l_test.support, l_test.statistic, color='orangered')
-
-# plt.scatter(l_test.support, l_test.statistic, 
-#             cmap='viridis', c=l_test.pvalue < .05,
-#             zorder=4 # make sure they plot on top
-#            )
-
-# plt.xlabel('Distance')
-# plt.ylabel('K Function')
-# plt.title('K Function Plot')
-# plt.show()
-

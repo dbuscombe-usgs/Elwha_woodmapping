@@ -1,19 +1,9 @@
 ## Dan Buscombe, Marda Science
 ## 2023
-import json, os
-import rioxarray
-import xarray as xr 
-from glob import glob 
-from dask.distributed import Client
-from tqdm import tqdm
+import json
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.colors
-from scipy import ndimage
-from skimage.exposure import match_histograms
 import pandas as pd 
-import geopandas as gpd
-
 import mchmm as mc
 import seaborn as sns
 from matplotlib.colors import ListedColormap
