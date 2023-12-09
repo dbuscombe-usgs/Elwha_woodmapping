@@ -1,5 +1,5 @@
 ## Dan Buscombe, Marda Science
-## Apr-June, 2023
+## 2023
 import json, os
 import rioxarray
 import xarray as xr 
@@ -11,6 +11,12 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 from scipy import ndimage
 from skimage.exposure import match_histograms
+import pandas as pd 
+import geopandas as gpd
+
+import mchmm as mc
+import seaborn as sns
+from matplotlib.colors import ListedColormap
 
 #############################################################
 #############################################################
@@ -166,7 +172,6 @@ label_geotiffs_ds = geotiffs_da.to_dataset('band')
 
 ###############################
 ########### analysis of transition
-import mchmm as mc
 
 
 # ## veg, water, sed, wood
@@ -197,85 +202,672 @@ import mchmm as mc
 # np.savez('summaries/MR_transition_matrices.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
 
 
-## veg, water, sed, wood
-PM = []; O2M = []; O3M = []
-## all - instantanues
-for counter,g in tqdm(enumerate(MRbudget_reaches_redo)):
-    print("Working on region {}".format(counter))
-    label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
+# ## veg, water, sed, wood
+# PM = []; O2M = []; O3M = []
+# ## all - instantanues
+# for counter,g in tqdm(enumerate(MRbudget_reaches_redo)):
+#     print("Working on region {}".format(counter))
+#     label_c = label_geotiffs_ds.rio.clip([g], label_geotiffs_ds.rio.crs)
 
-    A = []
-    for x, y in zip(label_c.x, label_c.y):
-        tmp = label_c[1].sel(x=x, y=y).values
-        a = mc.MarkovChain().from_data(tmp)
-        A.append(a)
+#     A = []
+#     for x, y in zip(label_c.x, label_c.y):
+#         tmp = label_c[1].sel(x=x, y=y).values
+#         a = mc.MarkovChain().from_data(tmp)
+#         A.append(a)
 
-    ind = np.where(np.array([len(a.observed_matrix) for a in A])==4)[0]
+#     ind = np.where(np.array([len(a.observed_matrix) for a in A])==4)[0]
 
-    try:
-        # np.array(A[ind].n_order_matrix)
-        PM.append(np.dstack([np.array(A[i].observed_p_matrix) for i in ind]).mean(axis=-1))
-        O2M.append(np.dstack([np.array(A[i].n_order_matrix(order=2)) for i in ind]).mean(axis=-1))
-        O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
-    except:
-        PM.append(np.ones((4,4))*np.nan)
-        O2M.append(np.ones((4,4))*np.nan)
-        O3M.append(np.ones((4,4))*np.nan)
+#     try:
+#         # np.array(A[ind].n_order_matrix)
+#         PM.append(np.dstack([np.array(A[i].observed_p_matrix) for i in ind]).mean(axis=-1))
+#         O2M.append(np.dstack([np.array(A[i].n_order_matrix(order=2)) for i in ind]).mean(axis=-1))
+#         O3M.append(np.dstack([np.array(A[i].n_order_matrix(order=3)) for i in ind]).mean(axis=-1))
+#     except:
+#         PM.append(np.ones((4,4))*np.nan)
+#         O2M.append(np.ones((4,4))*np.nan)
+#         O3M.append(np.ones((4,4))*np.nan)
 
-np.savez('summaries/MR_transition_matrices_budgetreaches.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
-
-
+# np.savez('summaries/MR_transition_matrices_budgetreaches.npz', MR_PM = PM, MR_O2M = O2M, MR_O3M = O3M)
 
 
-with np.load('summaries/MR_transition_matrices_budgetreaches.npz', allow_pickle=True) as dat:
-    MR_tpm = dict()
-    for k in dat.keys():
-        MR_tpm[k] = dat[k]
-    del dat
+## budget reaches
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+LRbudget_reaches = gj['features']
 
-MR_TPM = []
-for k in MR_tpm['MR_PM']:
-    if np.isnan(k).any():
-        tmp = np.ones((4,4))*np.nan
-        MR_TPM.append(tmp)
-    else:
-        MR_TPM.append(k)
+LRbudget_reaches_redo = []
+for b in LRbudget_reaches:
+    LRbudget_reaches_redo.append(dict({'type': 'Polygon','coordinates': b['geometry']['coordinates'][0]}))
+
+brfile = '../results/LR/LR_wood/wood_detect/model1/LR_budget_reaches_epsg4326.geojson'
+with open(brfile) as f:
+    gj = json.load(f)
+LRbudget_reaches2 = gj['features']
+
+
+##################################################################
+
+
+dists = pd.read_csv('br_dists.csv')
+LR = np.hstack((0,np.array(dists['LR'])))
+MR = np.hstack((0,np.array(dists['MR'][:43])))
+
+
+def rescale_array(dat, mn, mx):
+    """
+    rescales an input dat between mn and mx
+    Code from doodleverse_utils by Daniel Buscombe
+    source: https://github.com/Doodleverse/doodleverse_utils
+    """
+    m = min(dat.flatten())
+    M = max(dat.flatten())
+    return (mx - mn) * (dat - m) / (M - m) + mn
+
+
+LR = rescale_array(LR,11,2)
+MR = rescale_array(MR[::-1],12,20)
+
+
+# ############### MR
+
+# with np.load('summaries/MR_transition_matrices_budgetreaches.npz', allow_pickle=True) as dat:
+#     MR_tpm = dict()
+#     for k in dat.keys():
+#         MR_tpm[k] = dat[k]
+#     del dat
+
+# MR_TPM = []
+# for k in MR_tpm['MR_PM']:
+#     if np.isnan(k).any():
+#         tmp = np.ones((4,4))*np.nan
+#         MR_TPM.append(tmp)
+#     else:
+#         MR_TPM.append(k)
+
+
+# ############### LR
+
+# with np.load('summaries/LR_transition_matrices_budgetreaches_partial0_41.npz', allow_pickle=True) as dat:
+#     LR_tpm = dict()
+#     for k in dat.keys():
+#         LR_tpm[k] = dat[k]
+#     del dat
+
+# LR_TPM = []
+# for k in LR_tpm['LR_PM']:
+#     if np.isnan(k).any():
+#         tmp = np.ones((4,4))*np.nan
+#         LR_TPM.append(tmp)
+#     else:
+#         LR_TPM.append(k)
+
+# with np.load('summaries/LR_transition_matrices_budgetreaches_partial42_52.npz', allow_pickle=True) as dat:
+#     LR_tpm = dict()
+#     for k in dat.keys():
+#         LR_tpm[k] = dat[k]
+#     del dat
+
+# for k in LR_tpm['LR_PM']:
+#     if np.isnan(k).any():
+#         tmp = np.ones((4,4))*np.nan
+#         LR_TPM.append(tmp)
+#     else:
+#         LR_TPM.append(k)
+
+# #############################
+
+# dMR_TPM = np.dstack(MR_TPM)
+# dLR_TPM = np.dstack(LR_TPM)
+
+
+# plt.figure(figsize=(12,8))
+# plt.subplot(221)
+# g = sns.heatmap(np.nanmedian(dMR_TPM,axis=-1), annot = True, cmap ='plasma', vmax=1, vmin=0,
+#             linecolor ='black', linewidths = 1, cbar_kws={'label': 'Probability of transition'})
+
+# g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+# g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+
+# plt.subplot(222)
+# g = sns.heatmap(np.nanmedian(dLR_TPM,axis=-1), annot = True, cmap ='plasma', vmax=1, vmin=0,
+#             linecolor ='black', linewidths = 1, cbar_kws={'label': 'Probability of transition'})
+
+# g.set_xticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+# g.set_yticks([.5,1.5,2.5,3.5], ['Veg.','Water','Sediment', 'Wood'])
+
+# plt.savefig("summaries/median_reach_TPM_ds.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+# ############### MR
+
+# MR_wood_pers = [p[3,3] for p in MR_TPM]#
+# MR_sed_pers = [p[2,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_veg_pers = [p[0,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_water_pers = [p[1,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+
+# MR_veg_erosion = [p[0,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_veg_burial = [p[0,2] for p in MR_TPM]# MR_tpm['MR_PM']]
+# MR_canopy_emerg = [p[0,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+
+# MR_veg_enc = [p[1,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_sed_dep = [p[1,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_wood_dep_fromwater = [p[1,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+
+# MR_veg_growth = [p[2,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_sed_erosion = [p[2,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_wood_dep_fromsed = [p[2,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+
+# MR_wood_occl = [p[3,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_wood_erosion = [p[3,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# MR_wood_burial = [p[3,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
+
+# MRxy = np.array([np.mean(np.mean(g['coordinates'],axis=0),axis=0).flatten() for g in MRbudget_reaches_redo])
+# MRx = MRxy[:,0]
+# MRy = MRxy[:,1]
 
 
 
-MR_wood_pers = [p[3,3] for p in MR_TPM]#
-MR_sed_pers = [p[2,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
-MR_veg_pers = [p[0,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
-MR_water_pers = [p[1,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
-MR_veg_encroach = [p[0,1] for p in  MR_TPM]#MR_tpm['MR_PM']]
-MR_veg_growth = [p[0,2] for p in MR_TPM]# MR_tpm['MR_PM']]
-MR_wood_occl = [p[0,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
-MR_veg_erosion = [p[1,0] for p in  MR_TPM]#MR_tpm['MR_PM']]
-MR_sed_erosion = [p[1,2] for p in  MR_TPM]#MR_tpm['MR_PM']]
-MR_wood_erosion = [p[1,3] for p in  MR_TPM]#MR_tpm['MR_PM']]
+# ############### LR
 
-species = ([str(k) for k in range(len(MR_wood_pers))])
+# LR_wood_pers = [p[3,3] for p in LR_TPM]#
+# LR_sed_pers = [p[2,2] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_veg_pers = [p[0,0] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_water_pers = [p[1,1] for p in  LR_TPM]#LR_tpm['LR_PM']]
 
-MR_weight_counts = {
-    "Wood": np.array(MR_wood_pers),
-    "Sed": np.array(MR_sed_pers),
-    "Veg": np.array(MR_veg_pers),
-    "Water": np.array(MR_water_pers)
-}
+# LR_veg_erosion = [p[0,1] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_veg_burial = [p[0,2] for p in LR_TPM]# LR_tpm['LR_PM']]
+# LR_canopy_emerg = [p[0,3] for p in  LR_TPM]#LR_tpm['LR_PM']]
 
-width = 0.5
+# LR_veg_enc = [p[1,0] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_sed_dep = [p[1,2] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_wood_dep_fromwater = [p[1,3] for p in  LR_TPM]#LR_tpm['LR_PM']]
 
-fig, ax = plt.subplots()
-bottom = np.zeros(len(species))
+# LR_veg_growth = [p[2,0] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_sed_erosion = [p[2,1] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_wood_dep_fromsed = [p[2,3] for p in  LR_TPM]#LR_tpm['LR_PM']]
 
-for boolean, weight_count in MR_weight_counts.items():
-    p = ax.bar(times[1:], weight_count, width, label=boolean, bottom=bottom)
-    bottom += weight_count
+# LR_wood_occl = [p[3,0] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_wood_erosion = [p[3,1] for p in  LR_TPM]#LR_tpm['LR_PM']]
+# LR_wood_burial = [p[3,2] for p in  LR_TPM]#LR_tpm['LR_PM']]
 
-ax.set_title("Landcover persistence")
-ax.legend(loc="upper right")
+# LRxy = np.array([np.mean(np.mean(g['coordinates'],axis=0),axis=0).flatten() for g in LRbudget_reaches_redo])
+# LRx = LRxy[:,0]
+# LRy = LRxy[:,1]
 
-plt.show()
+
+
+# ##################################################################
+
+# dat = {
+#     ## persistence
+#     "MR_wood_pers": np.array(MR_wood_pers),
+#     "MR_sed_pers": np.array(MR_sed_pers),
+#     "MR_veg_pers": np.array(MR_veg_pers),
+#     "MR_water_pers": np.array(MR_water_pers),
+
+#     ## remov veg
+#     "MR_veg_erosion": np.array(MR_veg_erosion),    
+#     "MR_veg_burial": np.array(MR_veg_burial),   
+
+#     ## added veg
+#     "MR_veg_enc": np.array(MR_veg_enc),
+#     "MR_veg_growth": np.array(MR_veg_growth),
+
+#     ## added wood
+#     "MR_wood_dep_fromwater": np.array(MR_wood_dep_fromwater),      
+#     "MR_wood_dep_fromsed": np.array(MR_wood_dep_fromsed),  
+#     "MR_canopy_emerg": np.array(MR_canopy_emerg),
+
+#     ## sed
+#     "MR_sed_erosion": np.array(MR_sed_erosion),    
+#     "MR_sed_dep": np.array(MR_sed_dep),      
+
+#     ## remove wood
+#     "MR_wood_occl": np.array(MR_wood_occl),
+#     "MR_wood_erosion": np.array(MR_wood_erosion),      
+#     "MR_wood_burial": np.array(MR_wood_burial),    
+# }
+
+# dat = pd.DataFrame.from_dict(dat, orient='index')
+
+# dat2 = dat.T.dropna()
+
+# add_wood = dat2.MR_wood_dep_fromwater.values+ dat2.MR_wood_dep_fromsed.values+ dat2.MR_canopy_emerg.values
+# remove_wood = dat2.MR_wood_occl.values+ dat2.MR_wood_erosion.values+ dat2.MR_wood_burial.values
+
+# add_veg = dat2.MR_veg_enc.values+ dat2.MR_veg_growth.values
+# remove_veg = dat2.MR_veg_erosion.values+ dat2.MR_veg_burial.values
+
+
+# MRi  = np.interp(np.linspace(0,len(MR),len(dat2)), np.arange(len(MR)), MR)
+# #########################################
+
+
+# LRdat = {
+#     ## persistence
+#     "LR_wood_pers": np.array(LR_wood_pers),
+#     "LR_sed_pers": np.array(LR_sed_pers),
+#     "LR_veg_pers": np.array(LR_veg_pers),
+#     "LR_water_pers": np.array(LR_water_pers),
+
+#     ## remov veg
+#     "LR_veg_erosion": np.array(LR_veg_erosion),    
+#     "LR_veg_burial": np.array(LR_veg_burial),   
+
+#     ## added veg
+#     "LR_veg_enc": np.array(LR_veg_enc),
+#     "LR_veg_growth": np.array(LR_veg_growth),
+
+#     ## added wood
+#     "LR_wood_dep_fromwater": np.array(LR_wood_dep_fromwater),      
+#     "LR_wood_dep_fromsed": np.array(LR_wood_dep_fromsed),  
+#     "LR_canopy_emerg": np.array(LR_canopy_emerg),
+
+#     ## sed
+#     "LR_sed_erosion": np.array(LR_sed_erosion),    
+#     "LR_sed_dep": np.array(LR_sed_dep),      
+
+#     ## remove wood
+#     "LR_wood_occl": np.array(LR_wood_occl),
+#     "LR_wood_erosion": np.array(LR_wood_erosion),      
+#     "LR_wood_burial": np.array(LR_wood_burial),    
+# }
+
+# LRdat = pd.DataFrame.from_dict(LRdat, orient='index')
+
+# LRdat2 = LRdat.T.dropna()
+
+# LRadd_wood = LRdat2.LR_wood_dep_fromwater.values+ LRdat2.LR_wood_dep_fromsed.values+ LRdat2.LR_canopy_emerg.values
+# LRremove_wood = LRdat2.LR_wood_occl.values+ LRdat2.LR_wood_erosion.values+ LRdat2.LR_wood_burial.values
+
+# LRadd_veg = LRdat2.LR_veg_enc.values+ LRdat2.LR_veg_growth.values
+# LRremove_veg = LRdat2.LR_veg_erosion.values+ LRdat2.LR_veg_burial.values
+
+
+# LRi  = np.interp(np.linspace(0,len(LR),len(LRdat2)), np.arange(len(LR)), LR)
+
+
+
+
+
+# plt.figure(figsize=(12,18))
+
+# plt.subplot(621)
+# plt.plot(MRi, add_wood/3,'-', color='brown', label="Processes that add wood)")
+# plt.plot(MRi, remove_wood/3,'--', color='brown', label="Wood removal processes")
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(0,1)
+# plt.title('a)', loc='left')
+
+# plt.subplot(623)
+# plt.plot(MRi, (add_wood/3) - (remove_wood/3), 'k', label="Net probability")
+# plt.plot(MRi, dat2.MR_wood_pers.values,':', lw=2, color='brown', label="Persistent wood")
+# plt.axhline(0)
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(-1,1)
+# plt.title('b)', loc='left')
+
+# plt.subplot(625)
+# plt.plot(MRi,dat2.MR_sed_dep.values,'-', color='gold', label="Processes that add sediment)")
+# plt.plot(MRi,dat2.MR_sed_erosion.values,'--', color='gold', label="Sediment removal processes")
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(0,1)
+# plt.title('c)', loc='left')
+
+# plt.subplot(627)
+# plt.plot(MRi, (dat2.MR_sed_dep.values) - (dat2.MR_sed_erosion.values), 'k', label="Net probability")
+# plt.plot(MRi, dat2.MR_sed_pers.values,':', lw=2, color='gold', label="Persistent sediment")
+# plt.axhline(0)
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(-1,1)
+# plt.title('d)', loc='left')
+
+# plt.subplot(629)
+# plt.plot(MRi, add_veg/2,'-', color='lawngreen', label="Processes that add veg.)")
+# plt.plot(MRi, remove_veg/2,'--', color='lawngreen', label="Veg. removal processes")
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(0,1)
+# plt.title('e)', loc='left')
+
+# plt.subplot(6,2,11)
+# plt.plot(MRi, (add_veg/2) - (remove_veg/2), 'k', label="Net probability")
+# plt.plot(MRi, dat2.MR_veg_pers.values,':', lw=2, color='lawngreen', label="Persistent veg.")
+# plt.axhline(0)
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(-1,1)
+# plt.xlabel('River kilometer')
+# plt.ylabel('Probability')
+# plt.title('f)', loc='left')
+
+
+# #### LR
+
+# plt.subplot(622)
+# plt.plot(LRi, LRadd_wood/3,'-', color='brown', label="Processes that add wood)")
+# plt.plot(LRi, LRremove_wood/3,'--', color='brown', label="Wood removal processes")
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(0,1)
+
+# plt.subplot(624)
+# plt.plot(LRi, (LRadd_wood/3) - (LRremove_wood/3), 'k', label="Net probability")
+# plt.plot(LRi, LRdat2.LR_wood_pers.values,':', lw=2, color='brown', label="Persistent wood")
+# plt.axhline(0)
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(-1,1)
+
+# plt.subplot(626)
+# plt.plot(LRi,LRdat2.LR_sed_dep.values,'-', color='gold', label="Processes that add sediment)")
+# plt.plot(LRi,LRdat2.LR_sed_erosion.values,'--', color='gold', label="Sediment removal processes")
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(0,1)
+
+# plt.subplot(628)
+# plt.plot(LRi, (LRdat2.LR_sed_dep.values) - (LRdat2.LR_sed_erosion.values), 'k', label="Net probability")
+# plt.plot(LRi, LRdat2.LR_sed_pers.values,':', lw=2, color='gold', label="Persistent sediment")
+# plt.axhline(0)
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(-1,1)
+
+# plt.subplot(6,2,10)
+# plt.plot(LRi, LRadd_veg/2,'-', color='lawngreen', label="Processes that add veg.)")
+# plt.plot(LRi, LRremove_veg/2,'--', color='lawngreen', label="Veg. removal processes")
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(0,1)
+
+# plt.subplot(6,2,12)
+# plt.plot(LRi, (LRadd_veg/2) - (LRremove_veg/2), 'k', label="Net probability")
+# plt.plot(LRi, LRdat2.LR_veg_pers.values,':', lw=2, color='lawngreen', label="Persistent veg.")
+# plt.axhline(0)
+# plt.legend(fontsize=7)
+# plt.gca().invert_xaxis()
+# plt.ylim(-1,1)
+# plt.xlabel('River kilometer')
+# plt.ylabel('Probability')
+
+
+# # plt.show()
+# plt.savefig("summaries/MR_LR_transition_dynamics.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+
+#############################################################
+
+
+
+# cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
+# colors = ["lawngreen", "blue", "gold", "brown"]
+
+
+# ds =  [str(i)[:4] for i in MRi] 
+# width = 0.5
+
+# fig, ax = plt.subplots(nrows = 5, ncols = 1, figsize=(15,20))
+
+# tmp = dat2[["MR_veg_pers", "MR_water_pers", "MR_sed_pers", "MR_wood_pers"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[0].bar(ds, w, width, label=label, bottom=bottom, color=colors[counter])
+#     bottom += w
+#     counter += 1
+# ax[0].set_title("a) Persistence",loc='left')
+# ax[0].legend(loc="upper right")
+# # ax[0].invert_xaxis()
+# ax[0].set_ylim(0,2)
+
+# colors2 = ['cornflowerblue','goldenrod','yellowgreen']
+# tmp = dat2[["MR_wood_dep_fromwater", "MR_wood_dep_fromsed", "MR_canopy_emerg"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     p = ax[1].bar(ds, w, width, label=label, bottom=bottom, color=colors2[counter])
+#     bottom += w
+#     counter += 1
+# ax[1].set_title("b) Added wood",loc='left')
+# ax[1].legend(loc="upper right")
+# # ax[1].invert_xaxis()
+# ax[1].set_ylim(0,2)
+
+# colors3 = ['yellowgreen','lightsteelblue','khaki']
+# tmp = dat2[["MR_wood_occl", "MR_wood_erosion", "MR_wood_burial"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[2].bar(ds, w, width, label=label, bottom=bottom, color=colors3[counter])
+#     bottom += w
+#     counter += 1
+# ax[2].set_title("c) Removed wood",loc='left')
+# ax[2].legend(loc="upper right")
+# # ax[2].invert_xaxis()
+# ax[2].set_ylim(0,2)
+
+# colors4 = ['deepskyblue','gold']
+# tmp = dat2[["MR_sed_erosion", "MR_sed_dep"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[3].bar(ds, w, width, label=label, bottom=bottom, color=colors4[counter])
+#     bottom += w
+#     counter += 1
+# ax[3].set_title("d) Sediment",loc='left')
+# ax[3].legend(loc="upper right")
+# # ax[3].invert_xaxis()
+# ax[3].set_ylim(0,2)
+
+# colors5 = ['deepskyblue','gold', 'palegreen', 'limegreen']
+# tmp = dat2[["MR_veg_erosion", "MR_veg_burial", "MR_veg_enc", "MR_veg_growth"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[4].bar(ds, w, width, label=label, bottom=bottom, color=colors5[counter])
+#     bottom += w
+#     counter += 1
+# ax[4].set_title("e) Vegetation",loc='left')
+# ax[4].legend(loc="upper right")
+# # ax[4].invert_xaxis()
+# ax[4].set_ylim(0,2)
+# plt.xlabel('River kilometer')
+# plt.ylabel('Transition probability')
+
+# # plt.show()
+# plt.savefig("summaries/MR_transitions_ds.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+
+
+
+
+# ds =  [str(i)[:4] for i in LRi] 
+# width = 0.5
+
+# fig, ax = plt.subplots(nrows = 5, ncols = 1, figsize=(15,20))
+
+# tmp = LRdat2[["LR_veg_pers", "LR_water_pers", "LR_sed_pers", "LR_wood_pers"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[0].bar(ds, w, width, label=label, bottom=bottom, color=colors[counter])
+#     bottom += w
+#     counter += 1
+# # ax[0].set_title("a) Persistence",loc='left')
+# ax[0].legend(loc="upper right")
+# # ax[0].invert_xaxis()
+# ax[0].set_ylim(0,2)
+
+# colors2 = ['cornflowerblue','goldenrod','yellowgreen']
+# tmp = LRdat2[["LR_wood_dep_fromwater", "LR_wood_dep_fromsed", "LR_canopy_emerg"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     p = ax[1].bar(ds, w, width, label=label, bottom=bottom, color=colors2[counter])
+#     bottom += w
+#     counter += 1
+# # ax[1].set_title("b) Added wood",loc='left')
+# ax[1].legend(loc="upper right")
+# # ax[1].invert_xaxis()
+# ax[1].set_ylim(0,2)
+
+# colors3 = ['yellowgreen','lightsteelblue','khaki']
+# tmp = LRdat2[["LR_wood_occl", "LR_wood_erosion", "LR_wood_burial"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[2].bar(ds, w, width, label=label, bottom=bottom, color=colors3[counter])
+#     bottom += w
+#     counter += 1
+# # ax[2].set_title("c) Removed wood",loc='left')
+# ax[2].legend(loc="upper right")
+# # ax[2].invert_xaxis()
+# ax[2].set_ylim(0,2)
+
+# colors4 = ['deepskyblue','gold']
+# tmp = LRdat2[["LR_sed_erosion", "LR_sed_dep"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[3].bar(ds, w, width, label=label, bottom=bottom, color=colors4[counter])
+#     bottom += w
+#     counter += 1
+# # ax[3].set_title("d) Sediment",loc='left')
+# ax[3].legend(loc="upper right")
+# # ax[3].invert_xaxis()
+# ax[3].set_ylim(0,2)
+
+# colors5 = ['deepskyblue','gold', 'palegreen', 'limegreen']
+# tmp = LRdat2[["LR_veg_erosion", "LR_veg_burial", "LR_veg_enc", "LR_veg_growth"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[4].bar(ds, w, width, label=label, bottom=bottom, color=colors5[counter])
+#     bottom += w
+#     counter += 1
+# # ax[4].set_title("e) Vegetation",loc='left')
+# ax[4].legend(loc="upper right")
+# # ax[4].invert_xaxis()
+# ax[4].set_ylim(0,2)
+# plt.xlabel('River kilometer')
+# plt.ylabel('Transition probability')
+
+# # plt.show()
+# plt.savefig("summaries/LR_transitions_ds.png", dpi=300, bbox_inches="tight")
+# plt.close()
+
+
+
+
+
+
+
+
+# gdf = gpd.GeoDataFrame(
+#     dat.T, geometry=gpd.points_from_xy(np.array(MRx), np.array(MRy)), crs="EPSG:26911"
+# )
+
+# ## write to geojson file, using a wgs84 crs for the geometry
+# with open('MR_tpm_processes.geojson' , 'w') as file:
+#     file.write(gdf.to_crs("epsg:26911").to_json())
+
+
+
+
+# fig1, ax1 = plt.subplots(nrows=2,ncols=1)
+# ax1.pcolormesh(reference['x'].to_numpy(), reference['y'].to_numpy(),  reference['red'][:-1,:-1], cmap='gray')
+# ax1.scatter(MRx,MRy,20,MR_wood_erosion , cmap='bwr')
+# # plt.show()
+# plt.savefig("test.png", dpi=200, bbox_inches='tight')
+# plt.close()
+
+
+
+# plt.scatter(MRx,MRy,10,MR_wood_erosion )
+# plt.show()
+
+
+# species = ([str(k) for k in range(len(MR_wood_pers))])
+
+# MR_weight_counts = {
+#     "Wood": np.array(MR_wood_pers),
+#     "Sed": np.array(MR_sed_pers),
+#     "Veg": np.array(MR_veg_pers),
+#     "Water": np.array(MR_water_pers)
+# }
+
+# width = 0.5
+
+# fig, ax = plt.subplots()
+# bottom = np.zeros(len(species))
+
+# for boolean, weight_count in MR_weight_counts.items():
+#     p = ax.bar(weight_count, width, label=boolean, bottom=bottom)
+#     bottom += weight_count
+
+# ax.set_title("Landcover persistence")
+# ax.legend(loc="upper right")
+
+# plt.show()
 
 # tmp = np.array([[0.34736165, 0.22265122, 0.36679537, 0.06319176],
 #     [0.05255255, 0.62374517, 0.29045474, 0.03324753],
