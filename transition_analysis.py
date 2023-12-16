@@ -210,6 +210,12 @@ dMR_TPM = np.dstack(MR_TPM)
 dLR_TPM = np.dstack(LR_TPM)
 
 
+MR_ssv, U = np.linalg.eig(np.nanmedian(dMR_TPM,axis=-1).T)
+##array([0.82745277, 0.0706406 , 0.31582526, 0.24454458])
+
+LR_ssv, U = np.linalg.eig(np.nanmedian(dLR_TPM,axis=-1).T)
+##array([0.79263494, 0.0898428 , 0.0898428 , 0.24794542])
+
 #############################
 
 
