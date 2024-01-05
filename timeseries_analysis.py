@@ -313,13 +313,13 @@ plt.legend()
 plt.subplot(313)
 y = F_MRi.copy()/np.nansum(F_MRi,axis=0)/len(times)
 x = -.5
-r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) 
 mnsz1 = np.nansum(r_v * bins[1:],axis=1)
 plt.plot(mnsz1, dt, 'ko',lw=1, label='MR')
 
 y = F_LRi.copy()/np.nansum(F_LRi,axis=0)/len(times)
 x = -.5
-r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) #volume-by-weight proportion
+r_v = (y*bins[1:]**x) / np.nansum(y*bins[1:]**x) 
 mnsz2 = np.nansum(r_v * bins[1:],axis=1)
 plt.plot(mnsz2, dt, 'rs',lw=1, label='LR')
 

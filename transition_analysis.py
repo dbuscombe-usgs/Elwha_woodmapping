@@ -216,6 +216,9 @@ MR_ssv, U = np.linalg.eig(np.nanmedian(dMR_TPM,axis=-1).T)
 LR_ssv, U = np.linalg.eig(np.nanmedian(dLR_TPM,axis=-1).T)
 ##array([0.79263494, 0.0898428 , 0.0898428 , 0.24794542])
 
+MR_ssv = np.real(MR_ssv)/np.sum(np.real(MR_ssv))
+LR_ssv = np.real(LR_ssv)/np.sum(np.real(LR_ssv))
+
 #############################
 
 
@@ -580,16 +583,19 @@ plt.close()
 
 
 
-cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
-colors = ["lawngreen", "blue", "gold", "brown"]
+# cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
+# colors = ["lawngreen", "blue", "gold", "brown"]
 
+cmap = ListedColormap(["black", "brown"])
+colors = ["brown"]
 
 ds =  [str(i)[:4] for i in MRi] 
 width = 0.6
 
-fig, ax = plt.subplots(nrows = 5, ncols = 1, figsize=(15,20))
+fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize=(18,12))
 
-tmp = dat2[["veg. pers.", "water pers.", "sed. pers.", "wood pers."]]
+tmp = dat2[[ "wood pers."]]
+# tmp = dat2[["veg. pers.", "water pers.", "sed. pers.", "wood pers."]]
 keys = list(tmp.keys())
 wc = {}
 for k in range(tmp.to_numpy().shape[1]):
@@ -601,10 +607,10 @@ for counter, (label, w) in enumerate(wc.items()):
     p = ax[0].bar(ds, w, width, label=label, bottom=bottom, color=colors[counter])
     bottom += w
     counter += 1
-ax[0].set_title("a) Persistence",loc='left')
+ax[0].set_title("a) Wood persistence",loc='left')
 ax[0].legend(loc="upper left")
 # ax[0].invert_xaxis()
-ax[0].set_ylim(0,2)
+ax[0].set_ylim(0,1)
 
 colors2 = ['cornflowerblue','goldenrod','yellowgreen']
 tmp = dat2[["wood dep. (water)", "wood dep. (sed.)", "wood uncovering (veg.)"]]
@@ -618,10 +624,10 @@ for counter, (label, w) in enumerate(wc.items()):
     p = ax[1].bar(ds, w, width, label=label, bottom=bottom, color=colors2[counter])
     bottom += w
     counter += 1
-ax[1].set_title("b) Added wood",loc='left')
+ax[1].set_title("b) Wood addition",loc='left')
 ax[1].legend(loc="upper left")
 # ax[1].invert_xaxis()
-ax[1].set_ylim(0,2)
+ax[1].set_ylim(0,1)
 
 colors3 = ['yellowgreen','lightsteelblue','khaki']
 tmp = dat2[["wood covering (veg.)", "wood erosion", "wood burial"]]
@@ -636,63 +642,68 @@ for counter, (label, w) in enumerate(wc.items()):
     p = ax[2].bar(ds, w, width, label=label, bottom=bottom, color=colors3[counter])
     bottom += w
     counter += 1
-ax[2].set_title("c) Removed wood",loc='left')
+ax[2].set_title("c) Wood removal",loc='left')
 ax[2].legend(loc="upper left")
 # ax[2].invert_xaxis()
-ax[2].set_ylim(0,2)
+ax[2].set_ylim(0,1)
 
-colors4 = ['deepskyblue','gold']
-tmp = dat2[["sed. erosion", "sed. dep."]]
-keys = list(tmp.keys())
-wc = {}
-for k in range(tmp.to_numpy().shape[1]):
-    wc[keys[k]] = tmp.to_numpy()[:,k]
+# colors4 = ['deepskyblue','gold']
+# tmp = dat2[["sed. erosion", "sed. dep."]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
 
-bottom = np.zeros(tmp.to_numpy().shape[0])
-for counter, (label, w) in enumerate(wc.items()):
-    # print(counter)
-    p = ax[3].bar(ds, w, width, label=label, bottom=bottom, color=colors4[counter])
-    bottom += w
-    counter += 1
-ax[3].set_title("d) Sediment",loc='left')
-ax[3].legend(loc="upper left")
-# ax[3].invert_xaxis()
-ax[3].set_ylim(0,2)
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[3].bar(ds, w, width, label=label, bottom=bottom, color=colors4[counter])
+#     bottom += w
+#     counter += 1
+# ax[3].set_title("d) Sediment",loc='left')
+# ax[3].legend(loc="upper left")
+# # ax[3].invert_xaxis()
+# ax[3].set_ylim(0,2)
 
-colors5 = ['deepskyblue','gold', 'palegreen', 'limegreen']
-tmp = dat2[["veg. erosion (water)", "veg. erosion (sed.)", "veg. growth (water)",  "veg. growth (sed.)"]]
-keys = list(tmp.keys())
-wc = {}
-for k in range(tmp.to_numpy().shape[1]):
-    wc[keys[k]] = tmp.to_numpy()[:,k]
+# colors5 = ['deepskyblue','gold', 'palegreen', 'limegreen']
+# tmp = dat2[["veg. erosion (water)", "veg. erosion (sed.)", "veg. growth (water)",  "veg. growth (sed.)"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
 
-bottom = np.zeros(tmp.to_numpy().shape[0])
-for counter, (label, w) in enumerate(wc.items()):
-    # print(counter)
-    p = ax[4].bar(ds, w, width, label=label, bottom=bottom, color=colors5[counter])
-    bottom += w
-    counter += 1
-ax[4].set_title("e) Vegetation",loc='left')
-ax[4].legend(loc="upper left")
-# ax[4].invert_xaxis()
-ax[4].set_ylim(0,2)
-plt.xlabel('River kilometer')
-plt.ylabel('Transition probability')
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[4].bar(ds, w, width, label=label, bottom=bottom, color=colors5[counter])
+#     bottom += w
+#     counter += 1
+# ax[4].set_title("e) Vegetation",loc='left')
+# ax[4].legend(loc="upper left")
+# # ax[4].invert_xaxis()
+# ax[4].set_ylim(0,2)
+# plt.xlabel('River kilometer')
+# plt.ylabel('Transition probability')
 
 # plt.show()
-plt.savefig("summaries/MR_transitions_ds.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/MR_transitions_ds_v2.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 
 
+# cmap = ListedColormap(["black","lawngreen", "blue", "gold", "brown"])
+# colors = ["lawngreen", "blue", "gold", "brown"]
 
+cmap = ListedColormap(["black", "brown"])
+colors = ["brown"]
 
 ds =  [str(i)[:4] for i in LRi] 
 width = 0.6
 
-fig, ax = plt.subplots(nrows = 5, ncols = 1, figsize=(15,20))
+fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize=(18,12))
 
-tmp = LRdat2[["veg. pers.", "water pers.", "sed. pers.", "wood pers."]]
+tmp = LRdat2[[ "wood pers."]]
+# tmp = dat2[["veg. pers.", "water pers.", "sed. pers.", "wood pers."]]
 keys = list(tmp.keys())
 wc = {}
 for k in range(tmp.to_numpy().shape[1]):
@@ -704,13 +715,10 @@ for counter, (label, w) in enumerate(wc.items()):
     p = ax[0].bar(ds, w, width, label=label, bottom=bottom, color=colors[counter])
     bottom += w
     counter += 1
-ax[0].set_title("b) Persistence",loc='left')
+# ax[0].set_title("a) Wood persistence",loc='left')
 ax[0].legend(loc="upper left")
 # ax[0].invert_xaxis()
-ax[0].set_ylim(0,2)
-
-# ax[0].tick_params(left = False, right = False , labelleft = False , 
-#                 labelbottom = True, bottom = True) 
+ax[0].set_ylim(0,1)
 
 colors2 = ['cornflowerblue','goldenrod','yellowgreen']
 tmp = LRdat2[["wood dep. (water)", "wood dep. (sed.)", "wood uncovering (veg.)"]]
@@ -724,12 +732,10 @@ for counter, (label, w) in enumerate(wc.items()):
     p = ax[1].bar(ds, w, width, label=label, bottom=bottom, color=colors2[counter])
     bottom += w
     counter += 1
-ax[1].set_title("b) Added wood",loc='left')
+ax[1].set_title("b) Wood addition",loc='left')
 ax[1].legend(loc="upper left")
 # ax[1].invert_xaxis()
-ax[1].set_ylim(0,2)
-# ax[1].tick_params(left = False, right = False , labelleft = False , 
-#                 labelbottom = True, bottom = True) 
+ax[1].set_ylim(0,1)
 
 colors3 = ['yellowgreen','lightsteelblue','khaki']
 tmp = LRdat2[["wood covering (veg.)", "wood erosion", "wood burial"]]
@@ -744,55 +750,162 @@ for counter, (label, w) in enumerate(wc.items()):
     p = ax[2].bar(ds, w, width, label=label, bottom=bottom, color=colors3[counter])
     bottom += w
     counter += 1
-ax[2].set_title("c) Removed wood",loc='left')
+ax[2].set_title("c) Wood removal",loc='left')
 ax[2].legend(loc="upper left")
 # ax[2].invert_xaxis()
-ax[2].set_ylim(0,2)
-# ax[2].tick_params(left = False, right = False , labelleft = False , 
-#                 labelbottom = True, bottom = True) 
+ax[2].set_ylim(0,1)
 
-colors4 = ['deepskyblue','gold']
-tmp = LRdat2[["sed. erosion", "sed. dep."]]
-keys = list(tmp.keys())
-wc = {}
-for k in range(tmp.to_numpy().shape[1]):
-    wc[keys[k]] = tmp.to_numpy()[:,k]
+# colors4 = ['deepskyblue','gold']
+# tmp = dat2[["sed. erosion", "sed. dep."]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
 
-bottom = np.zeros(tmp.to_numpy().shape[0])
-for counter, (label, w) in enumerate(wc.items()):
-    # print(counter)
-    p = ax[3].bar(ds, w, width, label=label, bottom=bottom, color=colors4[counter])
-    bottom += w
-    counter += 1
-ax[3].set_title("d) Sediment",loc='left')
-ax[3].legend(loc="upper left")
-# ax[3].invert_xaxis()
-ax[3].set_ylim(0,2)
-# ax[3].tick_params(left = False, right = False , labelleft = False , 
-#                 labelbottom = True, bottom = True) 
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[3].bar(ds, w, width, label=label, bottom=bottom, color=colors4[counter])
+#     bottom += w
+#     counter += 1
+# ax[3].set_title("d) Sediment",loc='left')
+# ax[3].legend(loc="upper left")
+# # ax[3].invert_xaxis()
+# ax[3].set_ylim(0,2)
 
-colors5 = ['deepskyblue','gold', 'palegreen', 'limegreen']
-tmp = LRdat2[["veg. erosion (water)", "veg. erosion (sed.)", "veg. growth (water)",  "veg. growth (sed.)"]]
-keys = list(tmp.keys())
-wc = {}
-for k in range(tmp.to_numpy().shape[1]):
-    wc[keys[k]] = tmp.to_numpy()[:,k]
+# colors5 = ['deepskyblue','gold', 'palegreen', 'limegreen']
+# tmp = dat2[["veg. erosion (water)", "veg. erosion (sed.)", "veg. growth (water)",  "veg. growth (sed.)"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
 
-bottom = np.zeros(tmp.to_numpy().shape[0])
-for counter, (label, w) in enumerate(wc.items()):
-    # print(counter)
-    p = ax[4].bar(ds, w, width, label=label, bottom=bottom, color=colors5[counter])
-    bottom += w
-    counter += 1
-ax[4].set_title("e) Vegetation",loc='left')
-ax[4].legend(loc="upper left")
-# ax[4].invert_xaxis()
-ax[4].set_ylim(0,2)
-# ax[4].tick_params(left = False, right = False , labelleft = False , 
-#                 labelbottom = True, bottom = True) 
-plt.xlabel('River kilometer')
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[4].bar(ds, w, width, label=label, bottom=bottom, color=colors5[counter])
+#     bottom += w
+#     counter += 1
+# ax[4].set_title("e) Vegetation",loc='left')
+# ax[4].legend(loc="upper left")
+# # ax[4].invert_xaxis()
+# ax[4].set_ylim(0,2)
+# plt.xlabel('River kilometer')
 # plt.ylabel('Transition probability')
 
 # plt.show()
-plt.savefig("summaries/LR_transitions_ds.png", dpi=300, bbox_inches="tight")
+plt.savefig("summaries/LR_transitions_ds_v2.png", dpi=300, bbox_inches="tight")
 plt.close()
+
+
+
+
+# ds =  [str(i)[:4] for i in LRi] 
+# width = 0.6
+
+# fig, ax = plt.subplots(nrows = 5, ncols = 1, figsize=(15,20))
+
+# tmp = LRdat2[["veg. pers.", "water pers.", "sed. pers.", "wood pers."]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[0].bar(ds, w, width, label=label, bottom=bottom, color=colors[counter])
+#     bottom += w
+#     counter += 1
+# ax[0].set_title("b) Persistence",loc='left')
+# ax[0].legend(loc="upper left")
+# # ax[0].invert_xaxis()
+# ax[0].set_ylim(0,2)
+
+# # ax[0].tick_params(left = False, right = False , labelleft = False , 
+# #                 labelbottom = True, bottom = True) 
+
+# colors2 = ['cornflowerblue','goldenrod','yellowgreen']
+# tmp = LRdat2[["wood dep. (water)", "wood dep. (sed.)", "wood uncovering (veg.)"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     p = ax[1].bar(ds, w, width, label=label, bottom=bottom, color=colors2[counter])
+#     bottom += w
+#     counter += 1
+# ax[1].set_title("b) Added wood",loc='left')
+# ax[1].legend(loc="upper left")
+# # ax[1].invert_xaxis()
+# ax[1].set_ylim(0,2)
+# # ax[1].tick_params(left = False, right = False , labelleft = False , 
+# #                 labelbottom = True, bottom = True) 
+
+# colors3 = ['yellowgreen','lightsteelblue','khaki']
+# tmp = LRdat2[["wood covering (veg.)", "wood erosion", "wood burial"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[2].bar(ds, w, width, label=label, bottom=bottom, color=colors3[counter])
+#     bottom += w
+#     counter += 1
+# ax[2].set_title("c) Removed wood",loc='left')
+# ax[2].legend(loc="upper left")
+# # ax[2].invert_xaxis()
+# ax[2].set_ylim(0,2)
+# # ax[2].tick_params(left = False, right = False , labelleft = False , 
+# #                 labelbottom = True, bottom = True) 
+
+# colors4 = ['deepskyblue','gold']
+# tmp = LRdat2[["sed. erosion", "sed. dep."]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[3].bar(ds, w, width, label=label, bottom=bottom, color=colors4[counter])
+#     bottom += w
+#     counter += 1
+# ax[3].set_title("d) Sediment",loc='left')
+# ax[3].legend(loc="upper left")
+# # ax[3].invert_xaxis()
+# ax[3].set_ylim(0,2)
+# # ax[3].tick_params(left = False, right = False , labelleft = False , 
+# #                 labelbottom = True, bottom = True) 
+
+# colors5 = ['deepskyblue','gold', 'palegreen', 'limegreen']
+# tmp = LRdat2[["veg. erosion (water)", "veg. erosion (sed.)", "veg. growth (water)",  "veg. growth (sed.)"]]
+# keys = list(tmp.keys())
+# wc = {}
+# for k in range(tmp.to_numpy().shape[1]):
+#     wc[keys[k]] = tmp.to_numpy()[:,k]
+
+# bottom = np.zeros(tmp.to_numpy().shape[0])
+# for counter, (label, w) in enumerate(wc.items()):
+#     # print(counter)
+#     p = ax[4].bar(ds, w, width, label=label, bottom=bottom, color=colors5[counter])
+#     bottom += w
+#     counter += 1
+# ax[4].set_title("e) Vegetation",loc='left')
+# ax[4].legend(loc="upper left")
+# # ax[4].invert_xaxis()
+# ax[4].set_ylim(0,2)
+# # ax[4].tick_params(left = False, right = False , labelleft = False , 
+# #                 labelbottom = True, bottom = True) 
+# plt.xlabel('River kilometer')
+# # plt.ylabel('Transition probability')
+
+# # plt.show()
+# plt.savefig("summaries/LR_transitions_ds.png", dpi=300, bbox_inches="tight")
+# plt.close()
